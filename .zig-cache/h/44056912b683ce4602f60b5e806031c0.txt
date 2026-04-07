@@ -836,9 +836,9 @@
 3871 67607106 1775594926087050911 988ba1a6a3af1de5f3ff6852d3a9844c 0 /Users/arrrrny/Developer/claw-zig/src/main.zig
 5261 67542548 1775568528064057966 726605d4e67a2ced1c04cdfd1fc487c5 0 /Users/arrrrny/Developer/claw-zig/src/cli/args.zig
 2964 67542561 1775575854003993979 617f9ad867b4f2ca171c7f351342962a 0 /Users/arrrrny/Developer/claw-zig/src/env.zig
-11772 67631675 1775596184607214733 fc1a5658b790359869913c747c237885 0 /Users/arrrrny/Developer/claw-zig/src/repl/mod.zig
+11772 67631675 1775598244807717182 fc1a5658b790359869913c747c237885 0 /Users/arrrrny/Developer/claw-zig/src/repl/mod.zig
 3626 67607877 1775576345163081196 32344f75f55dd3b29b33940ea6cb81d5 0 /Users/arrrrny/Developer/claw-zig/src/repl/input.zig
-2308 67551009 1775576004028929655 4b963e3a8bc7b97f1474f62a215603cd 0 /Users/arrrrny/Developer/claw-zig/src/repl/output.zig
+2308 67551009 1775598204085871408 4b963e3a8bc7b97f1474f62a215603cd 0 /Users/arrrrny/Developer/claw-zig/src/repl/output.zig
 9454 67551083 1775595081671981112 d5a0e30d724f44c8626f9727c0233e9c 0 /Users/arrrrny/Developer/claw-zig/src/repl/context.zig
 3511 67549572 1775569693564592672 29d0c3bd2122a4ee4d20718f1ee4c20b 0 /Users/arrrrny/Developer/claw-zig/src/api/mod.zig
 4846 67549201 1775573555884978537 a790c653f2532db89fd91edb2d069225 0 /Users/arrrrny/Developer/claw-zig/src/utils/streaming.zig
