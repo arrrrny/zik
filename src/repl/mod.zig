@@ -1,4 +1,10 @@
 const std = @import("std");
+
+// libc functions for real-time streaming
+extern "c" fn popen(command: [*:0]const u8, mode: [*:0]const u8) ?*anyopaque;
+extern "c" fn pclose(stream: *anyopaque) c_int;
+extern "c" fn fileno(stream: *anyopaque) c_int;
+
 const InputHandler = @import("input.zig").InputHandler;
 const StreamOutput = @import("output.zig").StreamOutput;
 const ConversationContext = @import("context.zig").ConversationContext;
@@ -91,22 +97,48 @@ pub const REPL = struct {
         try self.streamCurl(&.{ "-s", "-N", "--max-time", "120", "-H", "Content-Type: application/json", "-H", ah, "-d", body, url });
     }
     fn streamCurl(self: *Self, args: []const []const u8) !void {
-        const out_path = "/tmp/.zik_stream";
-        var argv: [40][]const u8 = undefined; var argc: usize = 0;
-        argv[argc] = "curl"; argc += 1;
-        for (args) |a| { argv[argc] = a; argc += 1; }
-        argv[argc] = "-o"; argc += 1; argv[argc] = out_path; argc += 1;
-        argv[argc] = "--stderr"; argc += 1; argv[argc] = "/dev/null"; argc += 1;
-        var child = std.process.Child.init(argv[0..argc], self.allocator);
-        _ = try child.spawnAndWait();
-        const f = std.fs.cwd().openFile(out_path, .{}) catch { try self.ctx.addAssistantMessage("(no response)"); return; };
-        defer f.close(); std.fs.cwd().deleteFile(out_path) catch {};
-        var resp: [65536]u8 = undefined; var rlen: usize = 0;
+        // Build shell command with proper quoting
+        var cmd: [16384:0]u8 = undefined;
+        @memset(&cmd, 0);
+        var pos: usize = 0;
+        
+        cmd[0] = 'c'; cmd[1] = 'u'; cmd[2] = 'r'; cmd[3] = 'l'; cmd[4] = ' '; pos = 5;
+        for (args) |a| {
+            cmd[pos] = '\''; pos += 1;
+            @memcpy(cmd[pos..][0..a.len], a); pos += a.len;
+            cmd[pos] = '\''; pos += 1;
+            cmd[pos] = ' '; pos += 1;
+        }
+        cmd[pos] = 0;
+
+        // Open pipe to curl's stdout
+        const pipe = popen(cmd[0..pos :0], "r");
+        if (pipe == null) {
+            try self.ctx.addAssistantMessage("Error: could not run curl");
+            return;
+        }
+
+        // Get raw fd from the pipe — read() bypasses stdio buffering
+        const fd = fileno(pipe.?);
+
+        // Read incrementally as curl streams data
+        var resp: [65536]u8 = undefined;
+        var rlen: usize = 0;
         var pcb = ParseCtx{ .out = &self.output, .resp = &resp, .rlen = &rlen, .alloc = self.allocator };
-        var sp = SSEParser.init(self.allocator, scb, &pcb); defer sp.deinit();
+        var sp = SSEParser.init(self.allocator, scb, &pcb);
+        defer sp.deinit();
+
         var buf: [4096]u8 = undefined;
-        while (true) { const n = f.read(&buf) catch 0; if (n == 0) break; try sp.parseChunk(buf[0..n]); }
-        if (rlen > 0) try self.ctx.addAssistantMessage(resp[0..rlen]) else try self.ctx.addAssistantMessage("(empty)");
+        while (true) {
+            const n = std.posix.read(@intCast(fd), &buf) catch 0;
+            if (n == 0) break;
+            try sp.parseChunk(buf[0..n]);
+        }
+
+        _ = pclose(pipe.?);
+
+        if (rlen > 0) try self.ctx.addAssistantMessage(resp[0..rlen])
+        else try self.ctx.addAssistantMessage("(empty)");
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
