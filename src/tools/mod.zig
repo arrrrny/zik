@@ -5,6 +5,7 @@ const write_file = @import("write_file.zig");
 const bash_tool = @import("bash.zig");
 const todo_write = @import("todo_write.zig");
 const web_tools = @import("web_tools.zig");
+const extra_tools = @import("extra_tools.zig");
 
 /// Tool definition
 pub const ToolDef = struct {
@@ -175,6 +176,54 @@ pub fn registerAllTools(registry: *ToolRegistry) !void {
         .input_schema = "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"max_results\":{\"type\":\"integer\"}},\"required\":[\"query\"]}",
         .required_permission = .read_only,
         .handler = web_tools.handleWebSearch,
+    });
+
+    try registry.register(.{
+        .name = "AskUserQuestion",
+        .description = "Ask the user a clarifying question with optional answer options",
+        .input_schema = "{\"type\":\"object\",\"properties\":{\"question\":{\"type\":\"string\"},\"options\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"question\"]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleAskUserQuestion,
+    });
+
+    try registry.register(.{
+        .name = "Config",
+        .description = "View or modify CLI configuration",
+        .input_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"key\":{\"type\":\"string\"},\"value\":{\"type\":\"string\"}},\"required\":[\"action\"]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleConfig,
+    });
+
+    try registry.register(.{
+        .name = "Sleep",
+        .description = "Pause execution for specified milliseconds",
+        .input_schema = "{\"type\":\"object\",\"properties\":{\"duration_ms\":{\"type\":\"integer\"}},\"required\":[]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleSleep,
+    });
+
+    try registry.register(.{
+        .name = "Brief",
+        .description = "Generate a brief summary of the conversation",
+        .input_schema = "{\"type\":\"object\",\"properties\":{},\"required\":[]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleBrief,
+    });
+
+    try registry.register(.{
+        .name = "StructuredOutput",
+        .description = "Force structured JSON response according to a schema",
+        .input_schema = "{\"type\":\"object\",\"properties\":{\"schema\":{\"type\":\"string\"}},\"required\":[]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleStructuredOutput,
+    });
+
+    try registry.register(.{
+        .name = "Skill",
+        .description = "Invoke a pre-defined skill",
+        .input_schema = "{\"type\":\"object\",\"properties\":{\"skill_name\":{\"type\":\"string\"},\"arguments\":{\"type\":\"string\"}},\"required\":[\"skill_name\"]}",
+        .required_permission = .read_only,
+        .handler = extra_tools.handleSkill,
     });
 }
 

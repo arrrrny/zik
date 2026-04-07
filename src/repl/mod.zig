@@ -145,7 +145,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -162,11 +162,12 @@ pub const REPL = struct {
             try self.output.print("Model: {s}\n", .{self.model}); try self.output.flush();
         } else if (std.mem.eql(u8, command, "/cost")) {
             const u = self.ctx.getTokenUsage();
-            try self.output.print("Input: {} Output: {} Cache: {}\n", .{ u.input, u.output, u.cache_read });
+            try self.output.print("Input: {} Output: {} Cache: {} Total: {}\n", .{ u.input, u.output, u.cache_read, u.total() });
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/config")) {
-            try self.output.print("Model: {s} Provider: {s} Output: {s}\n", .{
-                self.model, self.provider.providerName() orelse "none", if (self.output_format == .text) "text" else "json" });
+            try self.output.print("Model: {s} Provider: {s} Output: {s} Workspace: {s} Base URL: {s}\n", .{
+                self.model, self.provider.providerName() orelse "none", if (self.output_format == .text) "text" else "json",
+                self.workspace_root, EnvReader.getAnthropicBaseUrl() });
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/export")) {
             try self.saveSession();
@@ -188,6 +189,41 @@ pub const REPL = struct {
                 const pl = @min(@as(usize, 60), m.content.len);
                 try self.output.print("  {d}. [{s}] {s}{s}\n", .{ i + 1, rs, m.content[0..pl], if (m.content.len > pl) "..." else "" });
             }
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/doctor")) {
+            try self.output.writeFull("=== Doctor Check ===");
+            // Check API key
+            const provider = EnvReader.detectProvider();
+            if (provider) |p| {
+                const pname = switch (p) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+                try self.output.print("API Key: {s} OK\n", .{pname});
+            } else try self.output.writeFull("API Key: MISSING - set ANTHROPIC_API_KEY or OPENAI_API_KEY");
+            // Check model
+            try self.output.print("Model: {s}\n", .{self.model});
+            // Check base URL
+            try self.output.print("Base URL: {s}\n", .{EnvReader.getAnthropicBaseUrl()});
+            // Check workspace
+            const stat = std.fs.cwd().stat() catch null;
+            if (stat) |_| try self.output.print("Workspace: {s} OK\n", .{self.workspace_root})
+            else try self.output.print("Workspace: {s} ERROR\n", .{self.workspace_root});
+            try self.output.writeFull("=== Doctor Complete ===");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/session")) {
+            try self.output.print("Session ID: {s}\nMessages: {d}\nProvider: {s}\nModel: {s}\n", .{
+                self.ctx.getSessionId(), self.ctx.messageCount(),
+                self.provider.providerName() orelse "none", self.model });
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/permissions")) {
+            try self.output.writeFull("Permission mode: workspace-write (all tools enabled)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/version")) {
+            try self.output.writeFull("zik 0.1.0 (Zig rewrite)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/login")) {
+            try self.output.writeFull("OAuth login not yet implemented. Use API key env vars instead.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/logout")) {
+            try self.output.writeFull("Logged out (API key env vars still active).");
             try self.output.flush();
         } else {
             try self.output.print("Unknown: {s}\n", .{command}); try self.output.flush();
