@@ -4,6 +4,8 @@ const std = @import("std");
 extern "c" fn popen(command: [*:0]const u8, mode: [*:0]const u8) ?*anyopaque;
 extern "c" fn pclose(stream: *anyopaque) c_int;
 extern "c" fn fileno(stream: *anyopaque) c_int;
+extern "c" fn setvbuf(stream: *anyopaque, buf: ?[*]u8, mode: c_int, size: usize) c_int;
+const _IONBF = 2; // no buffering
 
 const InputHandler = @import("input.zig").InputHandler;
 const StreamOutput = @import("output.zig").StreamOutput;
@@ -118,7 +120,8 @@ pub const REPL = struct {
             return;
         }
 
-        // Get raw fd from the pipe — read() bypasses stdio buffering
+        // Get raw fd from the pipe — std.posix.read is the right tool for simple pipe reading.
+        // The new std.Io.Reader is designed for composable TLS streams, not simple fd reads.
         const fd = fileno(pipe.?);
 
         // Read incrementally as curl streams data
