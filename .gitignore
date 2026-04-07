@@ -1,0 +1,28 @@
+# Zig build artifacts
+zig-out/
+zig-cache/
+
+# Object files
+*.o
+*.out
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Session files (may contain API keys)
+.claw/sessions/
+
+# Local config (may contain secrets)
+.claw/settings.local.json

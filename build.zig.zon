@@ -1,0 +1,11 @@
+.{
+    .name = .zik,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.15.0",
+    .root_source_file = .{ .path = "src/main.zig" },
+    .paths = .{
+        "src/main.zig",
+        "build.zig",
+    },
+    .fingerprint = 0xc8785caab35e9919,
+}
