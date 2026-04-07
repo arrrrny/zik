@@ -15,7 +15,7 @@ pub const CliArgs = struct {
     /// Session to resume
     resume_session: ?[]const u8 = null,
 
-    pub const Command = enum { repl, prompt, shorthand, help, version };
+    pub const Command = enum { repl, prompt, shorthand, help, version, acp };
     pub const PermissionMode = enum { read_only, workspace_write, danger_full_access };
     pub const OutputFormat = enum { text, json };
 
@@ -35,6 +35,10 @@ pub const CliArgs = struct {
             }
             if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-V")) {
                 result.command = .version;
+                return result;
+            }
+            if (std.mem.eql(u8, arg, "--acp")) {
+                result.command = .acp;
                 return result;
             }
             if (std.mem.eql(u8, arg, "--model") or std.mem.eql(u8, arg, "-m")) {

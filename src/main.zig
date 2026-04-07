@@ -2,6 +2,7 @@ const std = @import("std");
 const CliArgs = @import("cli/args.zig").CliArgs;
 const EnvReader = @import("env.zig").EnvReader;
 const REPL = @import("repl/mod.zig").REPL;
+const acp = @import("acp/mod.zig");
 
 pub fn main() !void {
     // Use page_allocator for a CLI — memory freed on process exit
@@ -47,6 +48,9 @@ pub fn main() !void {
 
             try repl.run();
         },
+        .acp => {
+            std.debug.print("zik ACP server v0.1.0 (protocol v{d})\n", .{acp.PROTOCOL_VERSION});
+        },
     }
 }
 
@@ -84,6 +88,7 @@ fn printHelp() void {
         \\Options:
         \\  -h, --help                  Show this help message
         \\  -V, --version               Show version information
+        \\  --acp                       Run as ACP server (JSON-RPC over stdio)
         \\  -m, --model <model>         Override the model to use
         \\  --permission-mode <mode>    Override permission mode
         \\  --output-format <format>    Output format (text, json)
