@@ -27,7 +27,7 @@ pub const REPL = struct {
         const wd = wr orelse ".";
         var ctx = ConversationContext.init(allocator);
         ctx.token_usage = .{};
-        if (resume_session_id) |sid| ctx.session_id = sid;
+        if (resume_session_id) |sid| ctx.setSessionId(sid);
         return Self{
             .allocator = allocator, .input = InputHandler.init(allocator), .output = StreamOutput.init(),
             .ctx = ctx, .provider = try ProviderRouter.init(allocator, model_id),
@@ -43,7 +43,7 @@ pub const REPL = struct {
     fn saveSession(self: *Self) !void {
         const d = ".claw/sessions"; std.fs.cwd().makePath(d) catch {};
         const sj = try self.ctx.toJsonSession(); defer self.allocator.free(sj);
-        const p = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ d, self.ctx.session_id }); defer self.allocator.free(p);
+        const p = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ d, self.ctx.getSessionId() }); defer self.allocator.free(p);
         const f = std.fs.cwd().createFile(p, .{ .truncate = true }) catch return; defer f.close();
         try f.writeAll(sj);
     }
@@ -118,7 +118,7 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/status")) {
             const u = self.ctx.getTokenUsage();
             try self.output.print("Model: {s} Msgs: {d} Provider: {s} Session: {s} Tokens: in={} out={} total={}\n", .{
-                self.model, self.ctx.messageCount(), self.provider.providerName() orelse "none", self.ctx.session_id, u.input, u.output, u.total() });
+                self.model, self.ctx.messageCount(), self.provider.providerName() orelse "none", self.ctx.getSessionId(), u.input, u.output, u.total() });
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/model")) {
             try self.output.print("Model: {s}\n", .{self.model}); try self.output.flush();
@@ -135,7 +135,7 @@ pub const REPL = struct {
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/export")) {
             try self.saveSession();
-            try self.output.print("Session: .claw/sessions/{s}.json\n", .{self.ctx.session_id});
+            try self.output.print("Session: .claw/sessions/{s}.json\n", .{self.ctx.getSessionId()});
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/compact")) {
             const keep: usize = 10;

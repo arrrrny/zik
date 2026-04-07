@@ -4,9 +4,8 @@ const EnvReader = @import("env.zig").EnvReader;
 const REPL = @import("repl/mod.zig").REPL;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    // Use page_allocator for a CLI — memory freed on process exit
+    const allocator = std.heap.page_allocator;
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);

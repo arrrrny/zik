@@ -28,22 +28,44 @@ pub const ConversationContext = struct {
     message_capacity: usize = 0,
     system_prompt: []const u8,
     token_usage: TokenUsage,
-    session_id: []const u8 = "",
-    created_at: []const u8 = "",
-    updated_at: []const u8 = "",
+    session_id: [32]u8 = undefined,
+    session_id_len: usize = 0,
+    created_at: [32]u8 = undefined,
+    created_at_len: usize = 0,
+    updated_at: [32]u8 = undefined,
+    updated_at_len: usize = 0,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
         const ts = getCurrentTimestamp(allocator);
-        return .{
-            .allocator = allocator,
-            .system_prompt = "You are a helpful coding assistant running in a terminal CLI.",
-            .session_id = ts,
-            .created_at = ts,
-            .updated_at = ts,
-            .token_usage = TokenUsage{},
-        };
+        var self = Self{ .allocator = allocator, .system_prompt = "You are a helpful coding assistant running in a terminal CLI.", .token_usage = TokenUsage{} };
+        self.session_id_len = @min(ts.len, 31);
+        @memcpy(self.session_id[0..self.session_id_len], ts[0..self.session_id_len]);
+        @memcpy(self.created_at[0..self.session_id_len], ts[0..self.session_id_len]);
+        self.created_at_len = self.session_id_len;
+        @memcpy(self.updated_at[0..self.session_id_len], ts[0..self.session_id_len]);
+        self.updated_at_len = self.session_id_len;
+        allocator.free(ts);
+        self.token_usage = TokenUsage{};
+        return self;
+    }
+
+    pub fn getSessionId(self: *const Self) []const u8 {
+        return self.session_id[0..self.session_id_len];
+    }
+
+    pub fn setSessionId(self: *Self, id: []const u8) void {
+        self.session_id_len = @min(id.len, 31);
+        @memcpy(self.session_id[0..self.session_id_len], id[0..self.session_id_len]);
+    }
+
+    fn getCreatedAt(self: *const Self) []const u8 {
+        return self.created_at[0..self.created_at_len];
+    }
+
+    fn getUpdatedAt(self: *const Self) []const u8 {
+        return self.updated_at[0..self.updated_at_len];
     }
 
     pub fn deinit(self: *Self) void {
@@ -53,11 +75,7 @@ pub const ConversationContext = struct {
         if (self.message_capacity > 0) {
             self.allocator.free(self.messages);
         }
-        if (self.session_id.len > 0 and !std.mem.eql(u8, self.session_id, self.created_at)) {
-            self.allocator.free(self.session_id);
-        }
-        self.allocator.free(self.created_at);
-        self.allocator.free(self.updated_at);
+        // No need to free session_id/created_at/updated_at — they're fixed buffers
     }
 
     fn ensureCapacity(self: *Self, needed: usize) !void {
@@ -75,7 +93,7 @@ pub const ConversationContext = struct {
             .content = try self.allocator.dupe(u8, content),
         };
         self.message_count += 1;
-        self.updated_at = getCurrentTimestamp(self.allocator);
+        { const ts = getCurrentTimestamp(self.allocator); self.updated_at_len = @min(ts.len, 31); @memcpy(self.updated_at[0..self.updated_at_len], ts[0..self.updated_at_len]); self.allocator.free(ts); }
     }
 
     pub fn addAssistantMessage(self: *Self, content: []const u8) !void {
@@ -85,7 +103,7 @@ pub const ConversationContext = struct {
             .content = try self.allocator.dupe(u8, content),
         };
         self.message_count += 1;
-        self.updated_at = getCurrentTimestamp(self.allocator);
+        { const ts = getCurrentTimestamp(self.allocator); self.updated_at_len = @min(ts.len, 31); @memcpy(self.updated_at[0..self.updated_at_len], ts[0..self.updated_at_len]); self.allocator.free(ts); }
     }
 
     /// Serialize messages to JSON array for API.
@@ -133,9 +151,9 @@ pub const ConversationContext = struct {
             \\{{"session_id":"{s}","model":"TODO","permission_mode":"workspace-write","workspace_root":".","created_at":"{s}","updated_at":"{s}","token_usage":{{"input":{},"output":{},"cache_read":{},"cache_creation":{}}},"messages":{s}}}
         ,
             .{
-                self.session_id,
-                self.created_at,
-                self.updated_at,
+                self.getSessionId(),
+                self.getCreatedAt(),
+                self.getUpdatedAt(),
                 self.token_usage.input,
                 self.token_usage.output,
                 self.token_usage.cache_read,
