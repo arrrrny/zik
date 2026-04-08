@@ -2,37 +2,71 @@ const std = @import("std");
 
 pub const Theme = enum { dark, light, minimal };
 
-// ANSI color codes for different themes
 pub const Colors = struct {
     prompt: []const u8,
     slash_cmd: []const u8,
     heading: []const u8,
     reset: []const u8,
+    pub fn dark() Colors { return .{ .prompt = "\x1b[1;36m", .slash_cmd = "\x1b[1;33m", .heading = "\x1b[1;32m", .reset = "\x1b[0m" }; }
+    pub fn light() Colors { return .{ .prompt = "\x1b[1;34m", .slash_cmd = "\x1b[1;35m", .heading = "\x1b[1;32m", .reset = "\x1b[0m" }; }
+    pub fn minimal() Colors { return .{ .prompt = "", .slash_cmd = "", .heading = "", .reset = "" }; }
+};
 
-    pub fn dark() Colors {
-        return .{
-            .prompt = "\x1b[1;36m",       // bold cyan
-            .slash_cmd = "\x1b[1;33m",    // bold yellow
-            .heading = "\x1b[1;32m",      // bold green
-            .reset = "\x1b[0m",
-        };
-    }
-    pub fn light() Colors {
-        return .{
-            .prompt = "\x1b[1;34m",       // bold blue
-            .slash_cmd = "\x1b[1;35m",    // bold magenta
-            .heading = "\x1b[1;32m",      // bold green
-            .reset = "\x1b[0m",
-        };
-    }
-    pub fn minimal() Colors {
-        return .{
-            .prompt = "",
-            .slash_cmd = "",
-            .heading = "",
-            .reset = "",
-        };
-    }
+const CmdInfo = struct { cmd: []const u8, desc: []const u8 };
+const ALL_CMDS: []const CmdInfo = &.{
+    .{ .cmd = "/help", .desc = "Show available commands" },
+    .{ .cmd = "/status", .desc = "Session status (model, messages, tokens)" },
+    .{ .cmd = "/exit", .desc = "Exit the REPL (saves session)" },
+    .{ .cmd = "/quit", .desc = "Same as /exit" },
+    .{ .cmd = "/clear", .desc = "Clear conversation history" },
+    .{ .cmd = "/model", .desc = "Show current model" },
+    .{ .cmd = "/cost", .desc = "Token usage and estimated cost" },
+    .{ .cmd = "/config", .desc = "Show effective configuration" },
+    .{ .cmd = "/export", .desc = "Export session to JSON" },
+    .{ .cmd = "/compact", .desc = "Compact conversation (keep last 10)" },
+    .{ .cmd = "/history", .desc = "Show message history summary" },
+    .{ .cmd = "/doctor", .desc = "Diagnostic health check" },
+    .{ .cmd = "/session", .desc = "Session details (ID, messages, provider)" },
+    .{ .cmd = "/permissions", .desc = "Permission mode status" },
+    .{ .cmd = "/version", .desc = "Version info" },
+    .{ .cmd = "/diff", .desc = "Show git workspace changes" },
+    .{ .cmd = "/resume", .desc = "Resume latest session" },
+    .{ .cmd = "/undo", .desc = "Undo last operation" },
+    .{ .cmd = "/run", .desc = "Execute shell command" },
+    .{ .cmd = "/test", .desc = "Auto-detect and run tests" },
+    .{ .cmd = "/build", .desc = "Auto-detect and run build" },
+    .{ .cmd = "/stop", .desc = "Stop current operation" },
+    .{ .cmd = "/retry", .desc = "Retry last failed operation" },
+    .{ .cmd = "/search", .desc = "Search code for pattern" },
+    .{ .cmd = "/files", .desc = "List workspace files" },
+    .{ .cmd = "/explain", .desc = "Explain selected code" },
+    .{ .cmd = "/fix", .desc = "Fix errors in workspace" },
+    .{ .cmd = "/format", .desc = "Auto-detect and run formatter" },
+    .{ .cmd = "/lint", .desc = "Auto-detect and run linter" },
+    .{ .cmd = "/refactor", .desc = "Refactor code" },
+    .{ .cmd = "/review", .desc = "Code review" },
+    .{ .cmd = "/context", .desc = "Show current context/state" },
+    .{ .cmd = "/usage", .desc = "Show token usage statistics" },
+    .{ .cmd = "/tokens", .desc = "Detailed token breakdown + cost" },
+    .{ .cmd = "/plan", .desc = "Enter planning mode" },
+    .{ .cmd = "/reset", .desc = "Reset session (clear history)" },
+    .{ .cmd = "/git", .desc = "Run git commands" },
+    .{ .cmd = "/commit", .desc = "Stage and commit all changes" },
+    .{ .cmd = "/summary", .desc = "Conversation summary" },
+    .{ .cmd = "/mcp", .desc = "MCP server management" },
+    .{ .cmd = "/plugin", .desc = "Plugin management" },
+    .{ .cmd = "/skills", .desc = "Skills management" },
+    .{ .cmd = "/sandbox", .desc = "Sandbox mode toggle" },
+    .{ .cmd = "/output-style", .desc = "Response formatting" },
+    .{ .cmd = "/max-tokens", .desc = "Token limit control" },
+    .{ .cmd = "/temperature", .desc = "Temperature control" },
+    .{ .cmd = "/effort", .desc = "Effort/complexity mode" },
+    .{ .cmd = "/profile", .desc = "Profile configuration" },
+    .{ .cmd = "/diagnostics", .desc = "Full system diagnostics" },
+    .{ .cmd = "/log", .desc = "Log viewing" },
+    .{ .cmd = "/init", .desc = "Workspace initialization" },
+    .{ .cmd = "/theme", .desc = "UI theme (dark/light/minimal)" },
+    .{ .cmd = "/vim", .desc = "Vim mode toggle" },
 };
 
 pub const InputHandler = struct {
@@ -59,16 +93,10 @@ pub const InputHandler = struct {
             .colors = Colors.dark(),
         };
     }
-
     pub fn setTheme(self: *Self, t: Theme) void {
         self.theme = t;
-        self.colors = switch (t) {
-            .dark => Colors.dark(),
-            .light => Colors.light(),
-            .minimal => Colors.minimal(),
-        };
+        self.colors = switch (t) { .dark => Colors.dark(), .light => Colors.light(), .minimal => Colors.minimal() };
     }
-
     pub fn enableRawMode(self: *Self) void {
         if (self.raw_mode) return;
         var termios = self.saved_termios;
@@ -83,146 +111,97 @@ pub const InputHandler = struct {
     pub fn restoreRawMode(self: *const Self) void {
         std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, self.saved_termios) catch {};
     }
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-        allocator.free(self.buf);
-    }
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void { allocator.free(self.buf); }
 
-    fn p(self: *Self, s: []const u8) void {
-        _ = std.posix.write(self.stdout.handle, s) catch {};
-    }
+    fn p(self: *Self, s: []const u8) void { _ = std.posix.write(self.stdout.handle, s) catch {}; }
+    fn prompt(self: *Self) void { self.p(self.colors.prompt); self.p("zik"); self.p(self.colors.reset); self.p("> "); }
 
-    fn prompt(self: *Self) void {
-        self.p(self.colors.prompt);
-        self.p("zik");
-        self.p(self.colors.reset);
-        self.p("> ");
-    }
+    // Clear from cursor to end of line, then go to beginning
+    fn clearLine(self: *Self) void { self.p("\r\x1b[K"); }
 
-    fn showCommands(self: *Self, lb: *[4096]u8, ll: usize) void {
-        const cmds: []const []const u8 = &.{
-            "/help           Show available commands",
-            "/status         Session status (model, messages, tokens)",
-            "/exit, /quit    Exit the REPL (saves session)",
-            "/clear          Clear conversation history",
-            "/model          Show current model",
-            "/model <name>   Change model",
-            "/cost           Token usage and estimated cost",
-            "/config         Show effective configuration",
-            "/export         Export session to JSON",
-            "/compact        Compact conversation (keep last 10)",
-            "/history        Show message history summary",
-            "/doctor         Diagnostic health check",
-            "/session        Session details (ID, messages, provider)",
-            "/permissions    Permission mode status",
-            "/version        Version info",
-            "/diff           Show git workspace changes",
-            "/resume         Resume latest session",
-            "/resume <id>    Resume specific session",
-            "/undo           Undo last operation",
-            "/run <cmd>      Execute shell command",
-            "/test           Auto-detect and run tests",
-            "/build          Auto-detect and run build",
-            "/stop           Stop current operation",
-            "/retry          Retry last failed operation",
-            "/search         Search code for pattern",
-            "/files          List workspace files",
-            "/explain        Explain selected code",
-            "/fix            Fix errors in workspace",
-            "/format         Auto-detect and run formatter",
-            "/lint           Auto-detect and run linter",
-            "/refactor       Refactor code",
-            "/review         Code review",
-            "/context        Show current context/state",
-            "/usage          Show token usage statistics",
-            "/tokens         Detailed token breakdown + cost",
-            "/plan           Enter planning mode",
-            "/reset          Reset session (clear history)",
-            "/git <args>     Run git commands",
-            "/commit <msg>   Stage and commit all changes",
-            "/summary        Conversation summary",
-            "/mcp            MCP server management",
-            "/plugin         Plugin management",
-            "/skills         Skills management",
-            "/sandbox        Sandbox mode toggle",
-            "/output-style   Response formatting",
-            "/max-tokens     Token limit control",
-            "/temperature    Temperature control",
-            "/effort         Effort/complexity mode",
-            "/profile        Profile configuration",
-            "/diagnostics    Full system diagnostics",
-            "/log            Log viewing",
-            "/init           Workspace initialization",
-            "/theme          UI theme (dark/light/minimal)",
-            "/vim            Vim mode toggle",
-        };
-        self.p("\n");
-        self.p(self.colors.heading);
-        self.p("  Available Commands:\n");
-        self.p(self.colors.reset);
-        for (cmds) |cmd| {
-            // Highlight the slash command name
-            const space = std.mem.indexOfScalar(u8, cmd, ' ') orelse cmd.len;
-            self.p("  ");
-            self.p(self.colors.slash_cmd);
-            self.p(cmd[0..space]);
-            self.p(self.colors.reset);
-            self.p(cmd[space..]);
-            self.p("\n");
-        }
+    // Move cursor to start of line, clear it, redraw prompt + input
+    fn redraw(self: *Self, lb: *[4096]u8, ll: usize) void {
+        self.clearLine();
         self.prompt();
         if (ll > 0) self.p(lb[0..ll]);
     }
 
-    pub fn readLine(self: *Self, allocator: std.mem.Allocator, cmds_shown: *bool) !?[]const u8 {
-        var line_buf: [4096]u8 = undefined;
-        var line_len: usize = 0;
+    // Tab: filter commands by current input prefix
+    // If input starts with / → filter matches
+    // If 1 match → autocomplete
+    // If >1 match → show filtered list
+    fn handleTab(self: *Self, lb: *[4096]u8, ll: usize) bool {
+        if (ll == 0 or lb[0] != '/') return false;
+
+        // Find space in input (end of command)
+        const end = std.mem.indexOfScalarPos(u8, lb, 0, ' ') orelse ll;
+        const prefix = lb[0..end];
+
+        // Collect matches
+        var matches: [64]usize = undefined;
+        var mc: usize = 0;
+        for (ALL_CMDS, 0..) |cmd, i| {
+            if (std.mem.startsWith(u8, cmd.cmd, prefix)) {
+                matches[mc] = i;
+                mc += 1;
+                if (mc >= matches.len) break;
+            }
+        }
+
+        if (mc == 0) return false;
+
+        if (mc == 1) {
+            // Autocomplete: replace current input with full command
+            const full = ALL_CMDS[matches[0]].cmd;
+            var i: usize = 0;
+            while (i < full.len and i < lb.len) : (i += 1) lb[i] = full[i];
+            self.redraw(lb, i);
+            return false; // keep waiting for more input
+        }
+
+        // Multiple matches: show filtered list
+        self.p("\n");
+        self.p(self.colors.heading);
+        self.p("  Matching Commands:\n");
+        self.p(self.colors.reset);
+        var j: usize = 0;
+        while (j < mc) : (j += 1) {
+            const cmd = ALL_CMDS[matches[j]];
+            self.p("  ");
+            self.p(self.colors.slash_cmd);
+            self.p(cmd.cmd);
+            self.p(self.colors.reset);
+            self.p("  ");
+            self.p(cmd.desc);
+            self.p("\n");
+        }
+        self.redraw(lb, ll);
+        return false;
+    }
+
+    pub fn readLine(self: *Self, allocator: std.mem.Allocator) !?[]const u8 {
+        var lb: [4096]u8 = undefined;
+        var ll: usize = 0;
         self.prompt();
-        var char_buf: [1]u8 = undefined;
+        var cb: [1]u8 = undefined;
         while (true) {
-            const n = try self.stdin.read(&char_buf);
+            const n = try self.stdin.read(&cb);
             if (n == 0) { self.p("\n"); return null; }
-            switch (char_buf[0]) {
+            switch (cb[0]) {
                 13, 10 => {
                     self.p("\n");
-                    if (line_len == 0) continue;
-                    return try allocator.dupe(u8, line_buf[0..line_len]);
+                    if (ll == 0) continue;
+                    return try allocator.dupe(u8, lb[0..ll]);
                 },
                 8, 127 => {
-                    if (line_len > 0) {
-                        line_len -= 1;
-                        // Hide and show for backspace visual update
-                        self.p("\x1b[D\x1b[K");
-                    }
-                    cmds_shown.* = false;
+                    if (ll > 0) { ll -= 1; self.p("\x1b[D\x1b[K"); }
                 },
-                3 => { self.p("^C\n"); self.prompt(); line_len = 0; cmds_shown.* = false; },
+                3 => { self.p("^C\n"); self.prompt(); ll = 0; },
                 4 => { self.p("\n"); return null; },
-                21 => { self.p("\r\x1b[K"); self.prompt(); line_len = 0; cmds_shown.* = false; },
-                9 => {
-                    // Tab — always show commands
-                    self.showCommands(&line_buf, line_len);
-                    cmds_shown.* = true;
-                },
-                47 => {
-                    // Slash — auto-display commands
-                    if (!cmds_shown.*) {
-                        self.showCommands(&line_buf, line_len);
-                        cmds_shown.* = true;
-                    }
-                    // Still add the slash to input
-                    if (line_len < line_buf.len) {
-                        line_buf[line_len] = '/';
-                        line_len += 1;
-                        self.p("/");
-                    }
-                },
+                21 => { self.p("\r\x1b[K"); self.prompt(); ll = 0; },
+                9 => { _ = self.handleTab(&lb, ll); },
                 32...46, 48...57, 65...90, 97...126 => {
-                    if (line_len < line_buf.len) {
-                        line_buf[line_len] = char_buf[0];
-                        line_len += 1;
-                        self.p(&char_buf);
-                    }
-                    cmds_shown.* = false;
+                    if (ll < lb.len) { lb[ll] = cb[0]; ll += 1; self.p(&cb); }
                 },
                 27 => { var esc: [2]u8 = undefined; _ = self.stdin.read(&esc) catch {}; },
                 else => {},
@@ -231,7 +210,7 @@ pub const InputHandler = struct {
     }
 };
 
-test "InputHandler init/deinit" {
+test "InputHandler init/deinit/theme" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -243,4 +222,14 @@ test "InputHandler init/deinit" {
     try std.testing.expect(h.theme == .light);
     h.setTheme(.minimal);
     try std.testing.expect(h.theme == .minimal);
+}
+
+test "cmd filtering" {
+    try std.testing.expect(ALL_CMDS.len == 57);
+    // Verify /co matches
+    var mc: usize = 0;
+    for (ALL_CMDS) |cmd| {
+        if (std.mem.startsWith(u8, cmd.cmd, "/co")) mc += 1;
+    }
+    try std.testing.expect(mc >= 3); // /cost, /config, /compact, /context, /commit
 }

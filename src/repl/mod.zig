@@ -61,11 +61,11 @@ pub const REPL = struct {
         const pn = self.provider.providerName() orelse "unknown";
         try self.output.print("Provider: {s} | Model: {s} | Type /help\n\n", .{ pn, self.model });
         try self.output.flush();
-        var cmds_shown = false;
+        
         while (self.running) {
-            const line = try self.input.readLine(self.allocator, &cmds_shown) orelse { self.running = false; break; };
+            const line = try self.input.readLine(self.allocator) orelse { self.running = false; break; };
             defer self.allocator.free(line);
-            cmds_shown = false;
+            
             const trimmed = std.mem.trim(u8, line, " \t\r\n");
             if (trimmed.len == 0) continue;
             if (trimmed[0] == '/') { try self.handleCommand(trimmed); continue; }
