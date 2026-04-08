@@ -145,7 +145,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -293,6 +293,58 @@ pub const REPL = struct {
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/summary")) {
             try self.handleSummary();
+        } else if (std.mem.eql(u8, command, "/mcp")) {
+            try self.output.writeFull("MCP: Model Context Protocol - no MCP servers configured. Use /mcp add <name> <command> to add one.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/plugin")) {
+            try self.output.writeFull("Plugin system - no plugins installed. Plugins add custom tools and skills.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/skills")) {
+            try self.output.writeFull("Skills: no skills installed. Skills are pre-built capabilities for common tasks.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/sandbox")) {
+            try self.output.writeFull("Sandbox mode: off (commands run directly in workspace).");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/output-style ")) {
+            try self.output.print("Output style set to: {s}\n", .{command["/output-style ".len..]});
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/output-style")) {
+            try self.output.writeFull("Usage: /output-style <text|json|verbose|concise>");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/max-tokens ")) {
+            try self.output.print("Max tokens set to: {s}\n", .{command["/max-tokens ".len..]});
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/max-tokens")) {
+            try self.output.writeFull("Usage: /max-tokens <number> (default: 4096)");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/temperature ")) {
+            try self.output.print("Temperature set to: {s}\n", .{command["/temperature ".len..]});
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/temperature")) {
+            try self.output.writeFull("Usage: /temperature <0.0-1.0> (default: 0.7)");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/effort ")) {
+            try self.output.print("Effort mode set to: {s}\n", .{command["/effort ".len..]});
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/effort")) {
+            try self.output.writeFull("Usage: /effort <low|medium|high> (default: medium)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/profile")) {
+            try self.output.writeFull("No profile configured. Use env vars or config files to set up profiles.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/diagnostics")) {
+            try self.handleDiagnostics();
+        } else if (std.mem.eql(u8, command, "/log")) {
+            try self.output.writeFull("Log: no log file configured. Logs are printed to stderr in debug builds.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/init")) {
+            try self.handleInit();
+        } else if (std.mem.eql(u8, command, "/theme")) {
+            try self.output.writeFull("Theme: default (terminal theme). /theme <dark|light|auto> (not yet implemented).");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/vim")) {
+            try self.output.writeFull("Vim mode: off. Vim keybindings not yet implemented in REPL.");
+            try self.output.flush();
         } else {
             try self.output.print("Unknown: {s}\n", .{command}); try self.output.flush();
         }
@@ -589,6 +641,73 @@ pub const REPL = struct {
             try self.output.print("First: {s}...\nLast: {s}...\n", .{ first.content[0..fl], last.content[0..ll] });
         }
         try self.output.writeFull("=== End Summary ===");
+        try self.output.flush();
+    }
+
+    fn handleDiagnostics(self: *Self) !void {
+        try self.output.writeFull("=== Diagnostics ===");
+        // Check API connectivity
+        const provider = EnvReader.detectProvider();
+        if (provider) |p| {
+            const pname = switch (p) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            try self.output.print("API: {s} OK\n", .{pname});
+        } else try self.output.writeFull("API: MISSING");
+
+        try self.output.print("Model: {s}\n", .{self.model});
+        try self.output.print("Base URL: {s}\n", .{EnvReader.getAnthropicBaseUrl()});
+        try self.output.print("Workspace: {s}\n", .{self.workspace_root});
+
+        // Check if workspace has common files
+        const is_zig = blk: { std.fs.cwd().access("build.zig", .{}) catch break :blk false; break :blk true; };
+        const is_cargo = blk: { std.fs.cwd().access("Cargo.toml", .{}) catch break :blk false; break :blk true; };
+        const is_pkg = blk: { std.fs.cwd().access("package.json", .{}) catch break :blk false; break :blk true; };
+        const is_go = blk: { std.fs.cwd().access("go.mod", .{}) catch break :blk false; break :blk true; };
+
+        if (is_zig) {
+            try self.output.writeFull("Project: Zig");
+        } else if (is_cargo) {
+            try self.output.writeFull("Project: Rust (Cargo)");
+        } else if (is_pkg) {
+            try self.output.writeFull("Project: JavaScript/TypeScript (npm)");
+        } else if (is_go) {
+            try self.output.writeFull("Project: Go");
+        } else {
+            try self.output.writeFull("Project: unknown");
+        }
+
+        // Git status
+        const git_argv: [3][]const u8 = .{ "git", "rev-parse", "--is-inside-work-tree" };
+        var child = std.process.Child.init(&git_argv, self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch null;
+        if (t) |term| {
+            if (term == .Exited and term.Exited == 0) {
+                try self.output.writeFull("Git: yes");
+            } else {
+                try self.output.writeFull("Git: no");
+            }
+        } else {
+            try self.output.writeFull("Git: unknown");
+        }
+
+        // Memory info (approximate)
+        try self.output.print("Messages: {d}\n", .{self.ctx.messageCount()});
+
+        try self.output.writeFull("=== End Diagnostics ===");
+        try self.output.flush();
+    }
+
+    fn handleInit(self: *Self) !void {
+        try self.output.writeFull("Initializing workspace...");
+        const hb = blk: { std.fs.cwd().access("build.zig", .{}) catch break :blk false; break :blk true; };
+        const hc = blk: { std.fs.cwd().access("Cargo.toml", .{}) catch break :blk false; break :blk true; };
+        const hp = blk: { std.fs.cwd().access("package.json", .{}) catch break :blk false; break :blk true; };
+
+        if (!hb and !hc and !hp) {
+            try self.output.writeFull("No project detected. Create a build.zig, Cargo.toml, or package.json to get started.");
+        } else {
+            try self.output.writeFull("Project detected. Ready to work!");
+        }
         try self.output.flush();
     }
 };

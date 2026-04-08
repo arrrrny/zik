@@ -52,11 +52,12 @@ pub const EnvReader = struct {
         return getEnv("XAI_BASE_URL") orelse "https://api.x.ai/v1";
     }
 
-    /// Get the default model from env, or fallback.
+    /// Get the default model from env, or fallback to working free models.
     pub fn getDefaultModel() []const u8 {
-        return getEnv("ANTHROPIC_DEFAULT_SONNET_MODEL") orelse
+        return getEnv("ZIK_MODEL") orelse
+            getEnv("ANTHROPIC_DEFAULT_SONNET_MODEL") orelse
             getEnv("ANTHROPIC_DEFAULT_MODEL") orelse
-            "claude-sonnet-4-6";
+            "minimax-m2.5";
     }
 
     /// Get the HTTP proxy URL, or null if not set.
