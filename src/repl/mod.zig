@@ -145,7 +145,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -249,6 +249,50 @@ pub const REPL = struct {
         } else if (std.mem.startsWith(u8, command, "/run")) {
             try self.output.writeFull("Usage: /run <command>");
             try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/search")) {
+            try self.output.writeFull("Usage: /search <pattern> — search code for pattern (use grep_search tool in conversation)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/files")) {
+            try self.handleFiles();
+        } else if (std.mem.eql(u8, command, "/explain")) {
+            try self.output.writeFull("Usage: select code in conversation and ask to explain (or ask directly in prompt)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/fix")) {
+            try self.output.writeFull("Usage: describe the issue and I'll fix it (or use /run with a linter first)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/format")) {
+            try self.handleFormat();
+        } else if (std.mem.eql(u8, command, "/lint")) {
+            try self.handleLint();
+        } else if (std.mem.eql(u8, command, "/refactor")) {
+            try self.output.writeFull("Usage: describe what to refactor in the conversation");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/review")) {
+            try self.output.writeFull("Usage: ask me to review specific files in the conversation");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/context")) {
+            try self.handleContext();
+        } else if (std.mem.eql(u8, command, "/usage")) {
+            try self.handleUsage();
+        } else if (std.mem.eql(u8, command, "/tokens")) {
+            try self.handleTokens();
+        } else if (std.mem.eql(u8, command, "/plan")) {
+            try self.output.writeFull("Planning mode: describe what you want to build and I'll create a step-by-step plan");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/reset")) {
+            try self.handleReset();
+        } else if (std.mem.startsWith(u8, command, "/git ")) {
+            try self.handleGit(command["/git ".len..]);
+        } else if (std.mem.eql(u8, command, "/git")) {
+            try self.output.writeFull("Usage: /git <args> — run git commands (e.g., /git status, /git log --oneline)");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/commit ")) {
+            try self.handleCommit(command["/commit ".len..]);
+        } else if (std.mem.eql(u8, command, "/commit")) {
+            try self.output.writeFull("Usage: /commit <message> — stage and commit all changes");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/summary")) {
+            try self.handleSummary();
         } else {
             try self.output.print("Unknown: {s}\n", .{command}); try self.output.flush();
         }
@@ -373,6 +417,178 @@ pub const REPL = struct {
             }
         }
         try self.output.writeFull("No build command detected.");
+        try self.output.flush();
+    }
+
+    fn handleFiles(self: *Self) !void {
+        try self.output.print("Listing files in: {s}\n---\n", .{self.workspace_root});
+        const git_argv: [5][]const u8 = .{ "git", "ls-files", "--cached", "--others", "--exclude-standard" };
+        var child = std.process.Child.init(&git_argv, self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch {
+            // Fallback: use find/ls
+            var child2 = std.process.Child.init(&[_][]const u8{ "ls", "-la" }, self.allocator);
+            child2.cwd = self.workspace_root;
+            _ = child2.spawnAndWait() catch {};
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        try self.output.flush();
+    }
+
+    fn handleFormat(self: *Self) !void {
+        try self.output.writeFull("Auto-formatting workspace...");
+        try self.output.flush();
+        const fmt_cmds: [3][]const []const u8 = .{
+            &.{ "zig", "fmt", "src/" },
+            &.{ "cargo", "fmt" },
+            &.{ "npx", "prettier", "--write", "." },
+        };
+        for (fmt_cmds) |fc| {
+            var child = std.process.Child.init(fc, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch continue;
+            if (t == .Exited and t.Exited == 0) {
+                try self.output.print("Formatted with {s}\n", .{fc[0]});
+                try self.output.flush();
+                return;
+            }
+        }
+        try self.output.writeFull("No formatter detected. Add a formatting tool to your project.");
+        try self.output.flush();
+    }
+
+    fn handleLint(self: *Self) !void {
+        try self.output.writeFull("Linting workspace...");
+        try self.output.flush();
+        const lint_cmds: [4][]const []const u8 = .{
+            &.{ "zig", "build" },
+            &.{ "cargo", "clippy" },
+            &.{ "npx", "eslint", "." },
+            &.{ "go", "vet", "./..." },
+        };
+        for (lint_cmds) |lc| {
+            var child = std.process.Child.init(lc, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch continue;
+            if (t == .Exited) {
+                try self.output.print("\nExit code: {d}\n", .{t.Exited});
+                try self.output.flush();
+                return;
+            }
+        }
+        try self.output.writeFull("No linter detected.");
+        try self.output.flush();
+    }
+
+    fn handleContext(self: *Self) !void {
+        try self.output.print("=== Context ===\nModel: {s}\nProvider: {s}\nMessages: {d}\nWorkspace: {s}\nOutput: {s}\n=== End Context ===\n", .{
+            self.model, self.provider.providerName() orelse "none",
+            self.ctx.messageCount(), self.workspace_root,
+            if (self.output_format == .text) "text" else "json",
+        });
+        try self.output.flush();
+    }
+
+    fn handleUsage(self: *Self) !void {
+        const u = self.ctx.getTokenUsage();
+        try self.output.print("=== Usage ===\nInput tokens: {}\nOutput tokens: {}\nCache read: {}\nCache creation: {}\nTotal: {}\n=== End Usage ===\n", .{
+            u.input, u.output, u.cache_read, u.cache_creation, u.total(),
+        });
+        try self.output.flush();
+    }
+
+    fn handleTokens(self: *Self) !void {
+        const u = self.ctx.getTokenUsage();
+        const input_cost = (u.input * 3) / 1_000_000;
+        const output_cost = (u.output * 15) / 1_000_000;
+        try self.output.print("=== Token Breakdown ===\nInput: {} tokens (~${d}.{d:0>2})\nOutput: {} tokens (~${d}.{d:0>2})\nCache read: {}\nCache creation: {}\nTotal: {} tokens\nTotal cost: ~${d}.{d:0>2}\n=== End Breakdown ===\n", .{
+            u.input, input_cost / 100, input_cost % 100,
+            u.output, output_cost / 100, output_cost % 100,
+            u.cache_read, u.cache_creation, u.total(),
+            (input_cost + output_cost) / 100, (input_cost + output_cost) % 100,
+        });
+        try self.output.flush();
+    }
+
+    fn handleReset(self: *Self) !void {
+        self.ctx.clear();
+        try self.output.writeFull("Session reset. Conversation history cleared.");
+        try self.output.flush();
+    }
+
+    fn handleGit(self: *Self, args: []const u8) !void {
+        try self.output.print("git {s}\n---\n", .{args});
+        try self.output.flush();
+        // Parse args into array
+        var argv_buf: [32][]const u8 = undefined;
+        argv_buf[0] = "git";
+        var argc: usize = 1;
+        var start: usize = 0;
+        var i: usize = 0;
+        while (i <= args.len) : (i += 1) {
+            if (i == args.len or args[i] == ' ') {
+                if (i > start) {
+                    argv_buf[argc] = args[start..i];
+                    argc += 1;
+                    if (argc >= argv_buf.len) break;
+                }
+                start = i + 1;
+            }
+        }
+        var child = std.process.Child.init(argv_buf[0..argc], self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed.");
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        try self.output.flush();
+    }
+
+    fn handleCommit(self: *Self, message: []const u8) !void {
+        try self.output.print("Committing: {s}\n---\n", .{message});
+        try self.output.flush();
+        // git add -A
+        var add_child = std.process.Child.init(&[_][]const u8{ "git", "add", "-A" }, self.allocator);
+        add_child.cwd = self.workspace_root;
+        _ = add_child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed.");
+            try self.output.flush();
+            return;
+        };
+        // git commit -m "..."
+        const msg_arg = try std.fmt.allocPrint(self.allocator, "-m\n{s}", .{message});
+        defer self.allocator.free(msg_arg);
+        var argv: [3][]const u8 = .{ "git", "commit", msg_arg };
+        var commit_child = std.process.Child.init(&argv, self.allocator);
+        commit_child.cwd = self.workspace_root;
+        const t = commit_child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed.");
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        try self.output.flush();
+    }
+
+    fn handleSummary(self: *Self) !void {
+        try self.output.print("=== Conversation Summary ===\nMessages: {d}\nModel: {s}\nProvider: {s}\n", .{
+            self.ctx.messageCount(), self.model, self.provider.providerName() orelse "none",
+        });
+        const u = self.ctx.getTokenUsage();
+        try self.output.print("Tokens: input={} output={} total={}\n", .{ u.input, u.output, u.total() });
+        // Show first few and last messages
+        if (self.ctx.message_count > 0) {
+            const first = self.ctx.messages[0];
+            const last = self.ctx.messages[self.ctx.message_count - 1];
+            const fl = @min(@as(usize, 80), first.content.len);
+            const ll = @min(@as(usize, 80), last.content.len);
+            try self.output.print("First: {s}...\nLast: {s}...\n", .{ first.content[0..fl], last.content[0..ll] });
+        }
+        try self.output.writeFull("=== End Summary ===");
         try self.output.flush();
     }
 };
