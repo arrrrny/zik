@@ -731,15 +731,13 @@ pub const REPL = struct {
 
 fn printBanner() void {
     std.debug.print(
-        \\  ╔═══════════╗
-        \\            ╱
-        \\           ╱
-        \\  ────────┤
-        \\          ╲
-        \\           ╲
-        \\            ╲
-        \\  ╚═══════════╝
-        \\
+        \\  ZZZZZZZ
+        \\      / 
+        \\     /  
+        \\    /   
+        \\   /    
+        \\  /     
+        \\ ZZZZZZZ
         \\
     , .{});
 }
