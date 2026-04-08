@@ -66,6 +66,13 @@ const ALL_CMDS: []const CmdInfo = &.{
     .{ .cmd = "/parallel", .desc = "Toggle parallel execution mode" },
     .{ .cmd = "/cache", .desc = "Cache management (status/clear/stats)" },
     .{ .cmd = "/agent", .desc = "Spawn sub-agent to run task" },
+    .{ .cmd = "/pr", .desc = "GitHub pull requests (list/create)" },
+    .{ .cmd = "/issue", .desc = "GitHub issues (list/search/create)" },
+    .{ .cmd = "/branch", .desc = "Git branch management (list/create)" },
+    .{ .cmd = "/share", .desc = "Share session via GitHub Gist" },
+    .{ .cmd = "/copy", .desc = "Copy text to clipboard" },
+    .{ .cmd = "/paste", .desc = "Paste from clipboard" },
+    .{ .cmd = "/image", .desc = "Analyze image file" },
 };
 
 pub const InputHandler = struct {

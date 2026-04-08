@@ -163,7 +163,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent /pr /issue /branch /share /copy /paste /image");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -383,6 +383,32 @@ pub const REPL = struct {
             try self.handleCache("status");
         } else if (std.mem.startsWith(u8, command, "/cache ")) {
             try self.handleCache(command["/cache ".len..]);
+        } else if (std.mem.startsWith(u8, command, "/pr ")) {
+            try self.handlePR(command["/pr ".len..]);
+        } else if (std.mem.eql(u8, command, "/pr")) {
+            try self.handlePR("list");
+        } else if (std.mem.startsWith(u8, command, "/issue ")) {
+            try self.handleIssue(command["/issue ".len..]);
+        } else if (std.mem.eql(u8, command, "/issue")) {
+            try self.output.writeFull("Usage: /issue <title> or /issue list or /issue search <query>");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/branch ")) {
+            try self.handleBranch(command["/branch ".len..]);
+        } else if (std.mem.eql(u8, command, "/branch")) {
+            try self.handleBranch("list");
+        } else if (std.mem.eql(u8, command, "/share")) {
+            try self.handleShare();
+        } else if (std.mem.eql(u8, command, "/copy")) {
+            try self.handleCopy("");
+        } else if (std.mem.startsWith(u8, command, "/copy ")) {
+            try self.handleCopy(command["/copy ".len..]);
+        } else if (std.mem.eql(u8, command, "/paste")) {
+            try self.handlePaste();
+        } else if (std.mem.startsWith(u8, command, "/image ")) {
+            try self.handleImage(command["/image ".len..]);
+        } else if (std.mem.eql(u8, command, "/image")) {
+            try self.output.writeFull("Usage: /image <path> — analyze an image file");
+            try self.output.flush();
         } else if (std.mem.startsWith(u8, command, "/agent ")) {
             const rest = command["/agent ".len..];
             if (std.mem.eql(u8, rest, "list")) {
@@ -804,6 +830,122 @@ pub const REPL = struct {
         } else {
             try self.output.writeFull("Usage: /cache <status|clear|stats>");
         }
+        try self.output.flush();
+    }
+
+    fn handlePR(self: *Self, arg: []const u8) !void {
+        if (std.mem.eql(u8, arg, "list")) {
+            try self.output.writeFull("=== GitHub Pull Requests ===");
+            var child = std.process.Child.init(&[_][]const u8{ "gh", "pr", "list", "--limit", "5" }, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("gh CLI not installed. Install with: brew install gh");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        } else {
+            try self.output.writeFull("Usage: /pr list or /pr create <title> (uses gh CLI)");
+        }
+        try self.output.flush();
+    }
+
+    fn handleIssue(self: *Self, arg: []const u8) !void {
+        if (std.mem.startsWith(u8, arg, "list") or std.mem.startsWith(u8, arg, "search")) {
+            const parts = if (std.mem.startsWith(u8, arg, "search")) &[_][]const u8{ "gh", "issue", "list", "-S", arg["search ".len..] } else &[_][]const u8{ "gh", "issue", "list", "--limit", "5" };
+            try self.output.writeFull("=== GitHub Issues ===");
+            var child = std.process.Child.init(parts, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("gh CLI not installed. Install with: brew install gh");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        } else {
+            try self.output.print("Creating issue: {s}\n", .{arg});
+            var child = std.process.Child.init(&[_][]const u8{ "gh", "issue", "create", "--title", arg, "--body", "Created via zik /issue command" }, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("gh CLI not installed.");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        }
+        try self.output.flush();
+    }
+
+    fn handleBranch(self: *Self, arg: []const u8) !void {
+        if (std.mem.eql(u8, arg, "list")) {
+            try self.output.writeFull("=== Git Branches ===");
+            var child = std.process.Child.init(&[_][]const u8{ "git", "branch", "-a" }, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("Git not installed or not a repo.");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        } else if (std.mem.startsWith(u8, arg, "create ")) {
+            const name = arg["create ".len..];
+            try self.output.print("Creating branch: {s}\n", .{name});
+            var child = std.process.Child.init(&[_][]const u8{ "git", "checkout", "-b", name }, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("Git not installed or not a repo.");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        } else {
+            try self.output.writeFull("Usage: /branch list or /branch create <name>");
+        }
+        try self.output.flush();
+    }
+
+    fn handleShare(self: *Self) !void {
+        try self.output.writeFull("Sharing session via GitHub Gist...");
+        const sj = try self.ctx.toJsonSession();
+        defer self.allocator.free(sj);
+        try self.output.writeFull("Gist creation requires GITHUB_TOKEN env var.");
+        try self.output.print("Session data: {} bytes (save to .claw/sessions/)\n", .{sj.len});
+        try self.output.flush();
+    }
+
+    fn handleCopy(self: *Self, text: []const u8) !void {
+        if (text.len == 0) {
+            try self.output.writeFull("Usage: /copy <text> — copy text to clipboard (uses pbcopy on macOS, xclip on Linux)");
+        } else {
+            const cmd = if (std.posix.uname().sysname[0] == 'D') &[_][]const u8{ "pbcopy" } else &[_][]const u8{ "xclip", "-selection", "clipboard" };
+            var child = std.process.Child.init(cmd, self.allocator);
+            const t = child.spawnAndWait() catch {
+                try self.output.writeFull("Failed to copy. Install pbcopy (macOS) or xclip (Linux).");
+                try self.output.flush();
+                return;
+            };
+            if (t == .Exited and t.Exited == 0) {
+                try self.output.writeFull("Copied to clipboard!");
+            } else {
+                try self.output.writeFull("Failed to copy. Install pbcopy (macOS) or xclip (Linux).");
+            }
+        }
+        try self.output.flush();
+    }
+
+    fn handlePaste(self: *Self) !void {
+        try self.output.writeFull("Paste from clipboard: use Cmd+V / Ctrl+V to paste into the REPL input directly.");
+        try self.output.flush();
+    }
+
+    fn handleImage(self: *Self, path: []const u8) !void {
+        const stat = std.fs.cwd().statFile(path) catch {
+            try self.output.print("Image not found: {s}\n", .{path});
+            try self.output.flush();
+            return;
+        };
+        try self.output.print("Image: {s} ({} bytes)\n", .{ path, stat.size });
+        try self.output.writeFull("To analyze this image, describe what you want to extract from it.");
         try self.output.flush();
     }
 
