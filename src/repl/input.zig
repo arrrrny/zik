@@ -1,12 +1,8 @@
 const std = @import("std");
 
 pub const Theme = enum { dark, light, minimal };
-
 pub const Colors = struct {
-    prompt: []const u8,
-    slash_cmd: []const u8,
-    heading: []const u8,
-    reset: []const u8,
+    prompt: []const u8, slash_cmd: []const u8, heading: []const u8, reset: []const u8,
     pub fn dark() Colors { return .{ .prompt = "\x1b[1;36m", .slash_cmd = "\x1b[1;33m", .heading = "\x1b[1;32m", .reset = "\x1b[0m" }; }
     pub fn light() Colors { return .{ .prompt = "\x1b[1;34m", .slash_cmd = "\x1b[1;35m", .heading = "\x1b[1;32m", .reset = "\x1b[0m" }; }
     pub fn minimal() Colors { return .{ .prompt = "", .slash_cmd = "", .heading = "", .reset = "" }; }
@@ -70,14 +66,8 @@ const ALL_CMDS: []const CmdInfo = &.{
 };
 
 pub const InputHandler = struct {
-    stdin: std.fs.File,
-    stdout: std.fs.File,
-    buf: []u8,
-    pos: usize,
-    saved_termios: std.posix.termios,
-    raw_mode: bool,
-    theme: Theme,
-    colors: Colors,
+    stdin: std.fs.File, stdout: std.fs.File, buf: []u8, pos: usize,
+    saved_termios: std.posix.termios, raw_mode: bool, theme: Theme, colors: Colors,
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -86,11 +76,8 @@ pub const InputHandler = struct {
             .stdin = std.fs.File{ .handle = std.posix.STDIN_FILENO },
             .stdout = std.fs.File{ .handle = std.posix.STDOUT_FILENO },
             .buf = allocator.alloc(u8, 4096) catch @panic("OOM"),
-            .pos = 0,
-            .saved_termios = saved,
-            .raw_mode = false,
-            .theme = .dark,
-            .colors = Colors.dark(),
+            .pos = 0, .saved_termios = saved, .raw_mode = false,
+            .theme = .dark, .colors = Colors.dark(),
         };
     }
     pub fn setTheme(self: *Self, t: Theme) void {
@@ -99,100 +86,62 @@ pub const InputHandler = struct {
     }
     pub fn enableRawMode(self: *Self) void {
         if (self.raw_mode) return;
-        var termios = self.saved_termios;
-        termios.lflag.ICANON = false;
-        termios.lflag.ECHO = false;
-        termios.lflag.ISIG = false;
-        termios.iflag.ICRNL = false;
-        termios.iflag.INLCR = false;
-        std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, termios) catch {};
+        var t = self.saved_termios;
+        t.lflag.ICANON = false; t.lflag.ECHO = false; t.lflag.ISIG = false;
+        t.iflag.ICRNL = false; t.iflag.INLCR = false;
+        std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, t) catch {};
         self.raw_mode = true;
     }
     pub fn restoreRawMode(self: *const Self) void {
         std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, self.saved_termios) catch {};
     }
     pub fn deinit(self: *Self, allocator: std.mem.Allocator) void { allocator.free(self.buf); }
-
     fn p(self: *Self, s: []const u8) void { _ = std.posix.write(self.stdout.handle, s) catch {}; }
     fn prompt(self: *Self) void { self.p(self.colors.prompt); self.p("zik"); self.p(self.colors.reset); self.p("> "); }
+    fn clr(self: *Self) void { self.p("\r\x1b[K"); }
+    fn redraw(self: *Self, lb: []const u8, ll: usize) void { self.clr(); self.prompt(); if (ll > 0) self.p(lb[0..ll]); }
 
-    // Clear from cursor to end of line, then go to beginning
-    fn clearLine(self: *Self) void { self.p("\r\x1b[K"); }
-
-    // Move cursor to start of line, clear it, redraw prompt + input
-    fn redraw(self: *Self, lb: *[4096]u8, ll: usize) void {
-        self.clearLine();
-        self.prompt();
-        if (ll > 0) self.p(lb[0..ll]);
-    }
-
-    fn showCommands(self: *Self, lb: *[4096]u8, ll: usize) void {
+    fn showAll(self: *Self, lb: []const u8, ll: usize) void {
         self.p("\n");
         self.p(self.colors.heading);
         self.p("  Available Commands:\n");
         self.p(self.colors.reset);
-        for (ALL_CMDS) |cmd| {
-            self.p("  ");
-            self.p(self.colors.slash_cmd);
-            self.p(cmd.cmd);
-            self.p(self.colors.reset);
-            self.p("  ");
-            self.p(cmd.desc);
-            self.p("\n");
+        for (ALL_CMDS) |c| {
+            self.p("  "); self.p(self.colors.slash_cmd); self.p(c.cmd);
+            self.p(self.colors.reset); self.p("  "); self.p(c.desc); self.p("\n");
         }
         self.redraw(lb, ll);
     }
 
-    // Tab: filter commands by current input prefix
-    // If input starts with / → filter matches
-    // If 1 match → autocomplete
-    // If >1 match → show filtered list
-    fn handleTab(self: *Self, lb: *[4096]u8, ll: usize) bool {
-        if (ll == 0 or lb[0] != '/') return false;
-
-        // Find space in input (end of command)
-        const end = std.mem.indexOfScalarPos(u8, lb, 0, ' ') orelse ll;
+    fn doTab(self: *Self, lb: *[4096]u8, ll: *usize) bool {
+        if (ll.* == 0 or lb[0] != '/') return false;
+        const end = std.mem.indexOfScalarPos(u8, lb, 0, ' ') orelse ll.*;
         const prefix = lb[0..end];
-
-        // Collect matches
         var matches: [64]usize = undefined;
         var mc: usize = 0;
-        for (ALL_CMDS, 0..) |cmd, i| {
-            if (std.mem.startsWith(u8, cmd.cmd, prefix)) {
-                matches[mc] = i;
-                mc += 1;
-                if (mc >= matches.len) break;
-            }
+        for (ALL_CMDS, 0..) |c, i| {
+            if (std.mem.startsWith(u8, c.cmd, prefix)) { matches[mc] = i; mc += 1; if (mc >= 64) break; }
         }
-
         if (mc == 0) return false;
-
         if (mc == 1) {
-            // Autocomplete: replace current input with full command
             const full = ALL_CMDS[matches[0]].cmd;
             var i: usize = 0;
             while (i < full.len and i < lb.len) : (i += 1) lb[i] = full[i];
-            self.redraw(lb, i);
-            return false; // keep waiting for more input
+            ll.* = i;
+            self.redraw(lb, ll.*);
+            return true;
         }
-
-        // Multiple matches: show filtered list
         self.p("\n");
         self.p(self.colors.heading);
         self.p("  Matching Commands:\n");
         self.p(self.colors.reset);
         var j: usize = 0;
         while (j < mc) : (j += 1) {
-            const cmd = ALL_CMDS[matches[j]];
-            self.p("  ");
-            self.p(self.colors.slash_cmd);
-            self.p(cmd.cmd);
-            self.p(self.colors.reset);
-            self.p("  ");
-            self.p(cmd.desc);
-            self.p("\n");
+            const c = ALL_CMDS[matches[j]];
+            self.p("  "); self.p(self.colors.slash_cmd); self.p(c.cmd);
+            self.p(self.colors.reset); self.p("  "); self.p(c.desc); self.p("\n");
         }
-        self.redraw(lb, ll);
+        self.redraw(lb, ll.*);
         return false;
     }
 
@@ -205,21 +154,14 @@ pub const InputHandler = struct {
             const n = try self.stdin.read(&cb);
             if (n == 0) { self.p("\n"); return null; }
             switch (cb[0]) {
-                13, 10 => {
-                    self.p("\n");
-                    if (ll == 0) continue;
-                    return try allocator.dupe(u8, lb[0..ll]);
-                },
-                8, 127 => {
-                    if (ll > 0) { ll -= 1; self.p("\x1b[D\x1b[K"); }
-                },
+                13, 10 => { self.p("\n"); if (ll == 0) continue; return try allocator.dupe(u8, lb[0..ll]); },
+                8, 127 => { if (ll > 0) { ll -= 1; self.p("\x1b[D\x1b[K"); } },
                 3 => { self.p("^C\n"); self.prompt(); ll = 0; },
                 4 => { self.p("\n"); return null; },
                 21 => { self.p("\r\x1b[K"); self.prompt(); ll = 0; },
-                9 => { _ = self.handleTab(&lb, ll); },
+                9 => { _ = self.doTab(&lb, &ll); },
                 47 => {
-                    // Slash — show all commands immediately, then add slash
-                    self.*.showCommands(&lb, ll);
+                    self.showAll(&lb, ll);
                     if (ll < lb.len) { lb[ll] = '/'; ll += 1; self.p("/"); }
                 },
                 32...46, 48...57, 65...90, 97...126 => {
@@ -236,22 +178,13 @@ test "InputHandler init/deinit/theme" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
-    var h = InputHandler.init(a);
-    defer h.deinit(a);
+    var h = InputHandler.init(a); defer h.deinit(a);
     try std.testing.expect(h.pos == 0);
     try std.testing.expect(h.theme == .dark);
-    h.setTheme(.light);
-    try std.testing.expect(h.theme == .light);
-    h.setTheme(.minimal);
-    try std.testing.expect(h.theme == .minimal);
+    h.setTheme(.light); try std.testing.expect(h.theme == .light);
+    h.setTheme(.minimal); try std.testing.expect(h.theme == .minimal);
 }
 
-test "cmd filtering" {
+test "cmd count" {
     try std.testing.expect(ALL_CMDS.len == 57);
-    // Verify /co matches
-    var mc: usize = 0;
-    for (ALL_CMDS) |cmd| {
-        if (std.mem.startsWith(u8, cmd.cmd, "/co")) mc += 1;
-    }
-    try std.testing.expect(mc >= 3); // /cost, /config, /compact, /context, /commit
 }

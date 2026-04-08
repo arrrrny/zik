@@ -730,7 +730,18 @@ pub const REPL = struct {
 };
 
 fn printBanner() void {
-    std.debug.print("  ___      _ _\n / __\\___ _| | |_\n \\__ \\ _\\/ | | __|\n / __/\\ \\ | | | |_\n \\____\\/ \\_|\\_\\\\__|\n        /__/\n\n", .{});
+    std.debug.print(
+        \\  ╔═══════════╗
+        \\            ╱
+        \\           ╱
+        \\  ────────┤
+        \\          ╲
+        \\           ╲
+        \\            ╲
+        \\  ╚═══════════╝
+        \\
+        \\
+    , .{});
 }
 
 const ParseCtx = struct { out: *StreamOutput, resp: *[65536]u8, rlen: *usize, alloc: std.mem.Allocator };
