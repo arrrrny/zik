@@ -63,6 +63,9 @@ const ALL_CMDS: []const CmdInfo = &.{
     .{ .cmd = "/init", .desc = "Workspace initialization" },
     .{ .cmd = "/theme", .desc = "UI theme (dark/light/minimal)" },
     .{ .cmd = "/vim", .desc = "Vim mode toggle" },
+    .{ .cmd = "/parallel", .desc = "Toggle parallel execution mode" },
+    .{ .cmd = "/cache", .desc = "Cache management (status/clear/stats)" },
+    .{ .cmd = "/agent", .desc = "Spawn sub-agent to run task" },
 };
 
 pub const InputHandler = struct {

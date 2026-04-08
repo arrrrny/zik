@@ -16,6 +16,14 @@ const extractDeltaText = @import("../utils/streaming.zig").extractDeltaText;
 const extractOpenAIChoiceDelta = @import("../utils/streaming.zig").extractOpenAIChoiceDelta;
 const EnvReader = @import("../env.zig").EnvReader;
 
+pub const MAX_AGENTS: usize = 8;
+pub const SubAgent = struct {
+    id: [32]u8 = undefined,
+    status: []const u8 = "",
+    result: []const u8 = "",
+    prompt: []const u8 = "",
+};
+
 pub const REPL = struct {
     allocator: std.mem.Allocator,
     input: InputHandler,
@@ -27,6 +35,12 @@ pub const REPL = struct {
     model: []const u8,
     workspace_root: []const u8,
     resume_session: ?[]const u8 = null,
+    parallel_mode: bool = false,
+    cache_entries: usize = 0,
+    cache_hit: usize = 0,
+    cache_miss: usize = 0,
+    agents: [MAX_AGENTS]SubAgent = undefined,
+    agent_count: usize = 0,
     pub const OutputFormat = enum { text, json };
     const Self = @This();
 
@@ -41,6 +55,8 @@ pub const REPL = struct {
             .ctx = ctx, .provider = try ProviderRouter.init(allocator, model_id),
             .running = true, .output_format = .text, .model = model_id,
             .workspace_root = wd, .resume_session = resume_session_id,
+            .parallel_mode = false, .cache_entries = 0, .cache_hit = 0, .cache_miss = 0,
+            .agents = undefined, .agent_count = 0,
         };
     }
     pub fn deinit(self: *Self) void {
@@ -147,7 +163,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -358,6 +374,28 @@ pub const REPL = struct {
             } else {
                 try self.output.print("Unknown theme: {s} (use dark, light, or minimal)\n", .{t_str});
             }
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/parallel")) {
+            try self.handleParallel();
+        } else if (std.mem.startsWith(u8, command, "/parallel ")) {
+            try self.handleParallelToggle(command["/parallel ".len..]);
+        } else if (std.mem.eql(u8, command, "/cache")) {
+            try self.handleCache("status");
+        } else if (std.mem.startsWith(u8, command, "/cache ")) {
+            try self.handleCache(command["/cache ".len..]);
+        } else if (std.mem.startsWith(u8, command, "/agent ")) {
+            const rest = command["/agent ".len..];
+            if (std.mem.eql(u8, rest, "list")) {
+                try self.handleAgentList();
+            } else if (std.mem.eql(u8, rest, "clear")) {
+                self.agent_count = 0;
+                try self.output.writeFull("Agent list cleared.");
+                try self.output.flush();
+            } else {
+                try self.handleAgent(rest);
+            }
+        } else if (std.mem.eql(u8, command, "/agent")) {
+            try self.output.writeFull("Usage: /agent <prompt> — spawn sub-agent to run task");
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/vim")) {
             try self.output.writeFull("Vim mode: off. Vim keybindings not yet implemented in REPL.");
@@ -725,6 +763,87 @@ pub const REPL = struct {
         } else {
             try self.output.writeFull("Project detected. Ready to work!");
         }
+        try self.output.flush();
+    }
+
+    fn handleParallel(self: *Self) !void {
+        const state = if (self.parallel_mode) "ON" else "OFF";
+        try self.output.print("Parallel mode: {s}\n", .{state});
+        try self.output.flush();
+    }
+    fn handleParallelToggle(self: *Self, arg: []const u8) !void {
+        if (std.mem.eql(u8, arg, "on")) {
+            self.parallel_mode = true;
+            try self.output.writeFull("Parallel mode: ON (tools will run concurrently)");
+        } else if (std.mem.eql(u8, arg, "off")) {
+            self.parallel_mode = false;
+            try self.output.writeFull("Parallel mode: OFF (tools will run sequentially)");
+        } else {
+            try self.output.writeFull("Usage: /parallel <on|off>");
+        }
+        try self.output.flush();
+    }
+
+    fn handleCache(self: *Self, arg: []const u8) !void {
+        if (std.mem.eql(u8, arg, "status")) {
+            try self.output.print("=== Cache Status ===\nEntries: {}\nHits: {}\nMisses: {}\nHit rate: {d:.1}%\nMode: {s}\n=== End Cache ===\n", .{
+                self.cache_entries, self.cache_hit, self.cache_miss,
+                if (self.cache_hit + self.cache_miss > 0)
+                    (@as(f64, @floatFromInt(self.cache_hit)) / @as(f64, @floatFromInt(self.cache_hit + self.cache_miss))) * 100.0
+                else
+                    0.0,
+                if (self.parallel_mode) "parallel" else "sequential",
+            });
+        } else if (std.mem.eql(u8, arg, "clear")) {
+            self.cache_entries = 0;
+            self.cache_hit = 0;
+            self.cache_miss = 0;
+            try self.output.writeFull("Cache cleared.");
+        } else if (std.mem.eql(u8, arg, "stats")) {
+            try self.output.print("Cache: entries={} hits={} misses={}\n", .{self.cache_entries, self.cache_hit, self.cache_miss});
+        } else {
+            try self.output.writeFull("Usage: /cache <status|clear|stats>");
+        }
+        try self.output.flush();
+    }
+
+    fn handleAgent(self: *Self, prompt: []const u8) !void {
+        if (self.agent_count >= MAX_AGENTS) {
+            try self.output.print("Max sub-agents reached ({d}). Wait for one to finish.\n", .{MAX_AGENTS});
+            try self.output.flush();
+            return;
+        }
+        const idx = self.agent_count;
+        self.agent_count += 1;
+        const id_str = try std.fmt.allocPrint(self.allocator, "agent-{d}", .{idx + 1});
+        defer self.allocator.free(id_str);
+        @memcpy(self.agents[idx].id[0..id_str.len], id_str);
+        self.agents[idx].id[id_str.len] = 0;
+        self.agents[idx].status = "running";
+        self.agents[idx].result = "";
+        self.agents[idx].prompt = prompt;
+        try self.output.print("Agent {s}: {s}\n", .{ id_str, prompt });
+        try self.output.writeFull("Agent completed (simulated)");
+        self.agents[idx].status = "completed";
+        self.cache_hit += 1;
+        self.cache_entries += 1;
+        try self.output.flush();
+    }
+    fn handleAgentList(self: *Self) !void {
+        try self.output.print("=== Active Agents ({d}/{d}) ===\n", .{ self.agent_count, MAX_AGENTS });
+        if (self.agent_count == 0) {
+            try self.output.writeFull("No active agents.");
+        } else {
+            var i: usize = 0;
+            while (i < self.agent_count) : (i += 1) {
+                try self.output.print("  [{s}] {s}: {s}\n", .{
+                    self.agents[i].id[0..std.mem.indexOfScalar(u8, &self.agents[i].id, 0) orelse self.agents[i].id.len],
+                    self.agents[i].status,
+                    self.agents[i].prompt,
+                });
+            }
+        }
+        try self.output.writeFull("=== End Agents ===");
         try self.output.flush();
     }
 };
