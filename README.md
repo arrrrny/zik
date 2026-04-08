@@ -12,7 +12,6 @@ A blazing-fast, zero-dependency AI coding assistant written in Zig. Connects to 
             ╲
   ╚═══════════╝
 ```
-```
 
 ## Quick Start
 
