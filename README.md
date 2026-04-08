@@ -3,12 +3,15 @@
 A blazing-fast, zero-dependency AI coding assistant written in Zig. Connects to any Anthropic-compatible API proxy for real-time code assistance.
 
 ```
-  ___      _ _
- / __\___ _| | |_
- \__ \ _\/ | | __|
- / __/\ \ | | |_
- \____\/ \_|\_\\__|
-        /__/
+  ╔═══════════╗
+            ╱
+           ╱
+  ────────┤
+          ╲
+           ╲
+            ╲
+  ╚═══════════╝
+```
 ```
 
 ## Quick Start
