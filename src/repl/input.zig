@@ -126,6 +126,23 @@ pub const InputHandler = struct {
         if (ll > 0) self.p(lb[0..ll]);
     }
 
+    fn showCommands(self: *Self, lb: *[4096]u8, ll: usize) void {
+        self.p("\n");
+        self.p(self.colors.heading);
+        self.p("  Available Commands:\n");
+        self.p(self.colors.reset);
+        for (ALL_CMDS) |cmd| {
+            self.p("  ");
+            self.p(self.colors.slash_cmd);
+            self.p(cmd.cmd);
+            self.p(self.colors.reset);
+            self.p("  ");
+            self.p(cmd.desc);
+            self.p("\n");
+        }
+        self.redraw(lb, ll);
+    }
+
     // Tab: filter commands by current input prefix
     // If input starts with / → filter matches
     // If 1 match → autocomplete
@@ -200,6 +217,11 @@ pub const InputHandler = struct {
                 4 => { self.p("\n"); return null; },
                 21 => { self.p("\r\x1b[K"); self.prompt(); ll = 0; },
                 9 => { _ = self.handleTab(&lb, ll); },
+                47 => {
+                    // Slash — show all commands immediately, then add slash
+                    self.*.showCommands(&lb, ll);
+                    if (ll < lb.len) { lb[ll] = '/'; ll += 1; self.p("/"); }
+                },
                 32...46, 48...57, 65...90, 97...126 => {
                     if (ll < lb.len) { lb[ll] = cb[0]; ll += 1; self.p(&cb); }
                 },
