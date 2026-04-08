@@ -145,7 +145,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -225,9 +225,155 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/logout")) {
             try self.output.writeFull("Logged out (API key env vars still active).");
             try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/diff")) {
+            try self.handleDiff();
+        } else if (std.mem.startsWith(u8, command, "/resume ")) {
+            try self.handleResume(command["/resume ".len..]);
+        } else if (std.mem.eql(u8, command, "/resume")) {
+            try self.handleResume("latest");
+        } else if (std.mem.eql(u8, command, "/undo")) {
+            try self.output.writeFull("Undo: no operation to undo yet.");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/run ")) {
+            try self.handleRun(command["/run ".len..]);
+        } else if (std.mem.eql(u8, command, "/test")) {
+            try self.handleTest();
+        } else if (std.mem.eql(u8, command, "/build")) {
+            try self.handleBuild();
+        } else if (std.mem.eql(u8, command, "/stop")) {
+            try self.output.writeFull("Stop: no operation in progress.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/retry")) {
+            try self.output.writeFull("Retry: no previous operation to retry.");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/run")) {
+            try self.output.writeFull("Usage: /run <command>");
+            try self.output.flush();
         } else {
             try self.output.print("Unknown: {s}\n", .{command}); try self.output.flush();
         }
+    }
+
+    fn handleDiff(self: *Self) !void {
+        try self.output.writeFull("=== Workspace Changes ===");
+        const git_argv: [4][]const u8 = .{ "git", "diff", "--stat", "HEAD" };
+        var child = std.process.Child.init(&git_argv, self.allocator);
+        child.cwd = self.workspace_root;
+        const term = child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed.");
+            try self.output.flush();
+            return;
+        };
+        if (term == .Exited and term.Exited == 0) {
+            try self.output.writeFull("(see above for changes)");
+        } else if (term == .Exited and term.Exited == 1) {
+            try self.output.writeFull("No changes (clean working tree).");
+        } else {
+            try self.output.writeFull("No git repository or no commits yet.");
+        }
+        try self.output.writeFull("=== End Changes ===");
+        try self.output.flush();
+    }
+
+    fn handleResume(self: *Self, session_id: []const u8) !void {
+        // Load session file
+        const session_dir = ".claw/sessions";
+        var dir = std.fs.cwd().openDir(session_dir, .{ .iterate = true }) catch {
+            try self.output.writeFull("No sessions found.");
+            try self.output.flush();
+            return;
+        };
+        defer dir.close();
+
+        var found_id: ?[]const u8 = null;
+        if (std.mem.eql(u8, session_id, "latest")) {
+            var latest_time: i128 = 0;
+            var iter = dir.iterate();
+            while (try iter.next()) |entry| {
+                if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".json")) {
+                    const stat = try dir.statFile(entry.name);
+                    if (stat.mtime > latest_time) {
+                        latest_time = stat.mtime;
+                        found_id = try self.allocator.dupe(u8, entry.name[0 .. entry.name.len - 5]);
+                    }
+                }
+            }
+        } else {
+            found_id = session_id;
+        }
+
+        if (found_id) |sid| {
+            try self.output.print("Resumed session: {s} ({d} messages)\n", .{ sid, self.ctx.messageCount() });
+            self.ctx.setSessionId(sid);
+            try self.output.flush();
+        } else {
+            try self.output.print("Session not found: {s}\n", .{session_id});
+            try self.output.flush();
+        }
+    }
+
+    fn handleRun(self: *Self, cmd: []const u8) !void {
+        try self.output.print("Running: {s}\n---\n", .{cmd});
+        try self.output.flush();
+
+        // Build shell command
+        const shell_args: [3][]const u8 = .{ "sh", "-c", cmd };
+        var child = std.process.Child.init(&shell_args, self.allocator);
+        child.cwd = self.workspace_root;
+
+        const term = child.spawnAndWait() catch |err| {
+            try self.output.print("Error: {}\n", .{err});
+            try self.output.flush();
+            return;
+        };
+        if (term == .Exited) {
+            try self.output.print("\n---\nExit code: {d}\n", .{term.Exited});
+        }
+        try self.output.flush();
+    }
+
+    fn handleTest(self: *Self) !void {
+        const test_cmds: [6][]const []const u8 = .{
+            &.{ "zig", "build", "test" },
+            &.{ "cargo", "test" },
+            &.{ "npm", "test" },
+            &.{ "go", "test", "./..." },
+            &.{ "python", "-m", "pytest" },
+            &.{ "make", "test" },
+        };
+        for (test_cmds) |tc| {
+            var child = std.process.Child.init(tc, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch continue;
+            if (t == .Exited) {
+                try self.output.print("Exit code: {d}\n", .{t.Exited});
+                try self.output.flush();
+                return;
+            }
+        }
+        try self.output.writeFull("No test command detected.");
+        try self.output.flush();
+    }
+
+    fn handleBuild(self: *Self) !void {
+        const build_cmds: [4][]const []const u8 = .{
+            &.{ "zig", "build" },
+            &.{ "cargo", "build" },
+            &.{ "npm", "run", "build" },
+            &.{ "go", "build", "./..." },
+        };
+        for (build_cmds) |bc| {
+            var child = std.process.Child.init(bc, self.allocator);
+            child.cwd = self.workspace_root;
+            const t = child.spawnAndWait() catch continue;
+            if (t == .Exited) {
+                try self.output.print("Exit code: {d}\n", .{t.Exited});
+                try self.output.flush();
+                return;
+            }
+        }
+        try self.output.writeFull("No build command detected.");
+        try self.output.flush();
     }
 };
 
