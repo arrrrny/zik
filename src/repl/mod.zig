@@ -61,9 +61,11 @@ pub const REPL = struct {
         const pn = self.provider.providerName() orelse "unknown";
         try self.output.print("Provider: {s} | Model: {s} | Type /help\n\n", .{ pn, self.model });
         try self.output.flush();
+        var cmds_shown = false;
         while (self.running) {
-            const line = try self.input.readLine(self.allocator) orelse { self.running = false; break; };
+            const line = try self.input.readLine(self.allocator, &cmds_shown) orelse { self.running = false; break; };
             defer self.allocator.free(line);
+            cmds_shown = false;
             const trimmed = std.mem.trim(u8, line, " \t\r\n");
             if (trimmed.len == 0) continue;
             if (trimmed[0] == '/') { try self.handleCommand(trimmed); continue; }
@@ -340,7 +342,22 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/init")) {
             try self.handleInit();
         } else if (std.mem.eql(u8, command, "/theme")) {
-            try self.output.writeFull("Theme: default (terminal theme). /theme <dark|light|auto> (not yet implemented).");
+            try self.output.writeFull("Theme: dark (use /theme dark|light|minimal)");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/theme ")) {
+            const t_str = command["/theme ".len..];
+            if (std.mem.eql(u8, t_str, "dark")) {
+                self.input.setTheme(.dark);
+                try self.output.writeFull("Theme set to: dark");
+            } else if (std.mem.eql(u8, t_str, "light")) {
+                self.input.setTheme(.light);
+                try self.output.writeFull("Theme set to: light");
+            } else if (std.mem.eql(u8, t_str, "minimal")) {
+                self.input.setTheme(.minimal);
+                try self.output.writeFull("Theme set to: minimal (no colors)");
+            } else {
+                try self.output.print("Unknown theme: {s} (use dark, light, or minimal)\n", .{t_str});
+            }
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/vim")) {
             try self.output.writeFull("Vim mode: off. Vim keybindings not yet implemented in REPL.");
