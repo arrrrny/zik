@@ -78,7 +78,7 @@ pub const ProviderRouter = struct {
     /// Get a user-friendly provider name.
     pub fn providerName(self: *const Self) ?[]const u8 {
         return switch (self.active_provider orelse return null) {
-            .zik => "Anthropic",
+            .zik => "Zik",
             .openai => "OpenAI-compatible",
             .xai => "xAI/Grok",
         };

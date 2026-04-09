@@ -213,7 +213,7 @@ pub const REPL = struct {
             // Check API key
             const provider = EnvReader.detectProvider();
             if (provider) |p| {
-                const pname = switch (p) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+                const pname = switch (p) { .zik => "Zik", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
                 try self.output.print("API Key: {s} OK\n", .{pname});
             } else try self.output.writeFull("API Key: MISSING - set ANTHROPIC_API_KEY or OPENAI_API_KEY");
             // Check model
@@ -984,7 +984,7 @@ pub const REPL = struct {
         // Check API connectivity
         const provider = EnvReader.detectProvider();
         if (provider) |p| {
-            const pname = switch (p) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            const pname = switch (p) { .zik => "Zik", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
             try self.output.print("API: {s} OK\n", .{pname});
         } else try self.output.writeFull("API: MISSING");
 
@@ -1260,7 +1260,7 @@ pub const REPL = struct {
         try self.output.writeFull("=== Available Providers ===");
         const p = EnvReader.detectProvider();
         if (p) |prov| {
-            const name = switch (prov) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            const name = switch (prov) { .zik => "Zik", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
             try self.output.print("Active: {s}\n", .{name});
         } else try self.output.writeFull("Active: none (no API key set)");
         try self.output.writeFull("Supported: Anthropic, OpenAI-compatible, xAI");
