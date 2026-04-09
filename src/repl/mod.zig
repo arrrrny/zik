@@ -163,7 +163,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent /pr /issue /branch /share /copy /paste /image /memory /budget /rate-limit /providers /rename /symbols /definition /references /blame /stash");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent /pr /issue /branch /share /copy /paste /image /memory /budget /rate-limit /providers /rename /symbols /definition /references /blame /stash /add-dir /advisor /agents /alias /allowed-tools /api-key /approve /autofix /benchmark /bookmarks /bughunter /changelog /chat /color /cron /debug-tool-call /deny /desktop /docs /env /fast /feedback /focus /hooks /hover /ide /insights /keybindings /language /listen /macro /map /metrics /migrate /multi /notifications /perf /pin /privacy-settings /project /reasoning /release-notes /rewind /screenshot /security-review /speak /stats /stickers /subagent /system-prompt /tag /tasks /team /telemetry /teleport /templates /terminal-setup /thinkback /tool-details /ultraplan /unfocus /unpin /upgrade /voice /web /workspace");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -466,6 +466,204 @@ pub const REPL = struct {
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/vim")) {
             try self.output.writeFull("Vim mode: off. Vim keybindings not yet implemented in REPL.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/add-dir")) {
+            try self.output.writeFull("/add-dir: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/advisor")) {
+            try self.output.writeFull("/advisor: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/agents")) {
+            try self.output.writeFull("/agents: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/alias")) {
+            try self.output.writeFull("/alias: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/allowed-tools")) {
+            try self.output.writeFull("/allowed-tools: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/api-key")) {
+            try self.output.writeFull("/api-key: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/approve")) {
+            try self.output.writeFull("/approve: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/autofix")) {
+            try self.output.writeFull("/autofix: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/benchmark")) {
+            try self.output.writeFull("/benchmark: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/bookmarks")) {
+            try self.output.writeFull("/bookmarks: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/bughunter")) {
+            try self.output.writeFull("/bughunter: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/changelog")) {
+            try self.output.writeFull("/changelog: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/chat")) {
+            try self.output.writeFull("/chat: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/color")) {
+            try self.output.writeFull("/color: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/cron")) {
+            try self.output.writeFull("/cron: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/debug-tool-call")) {
+            try self.output.writeFull("/debug-tool-call: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/deny")) {
+            try self.output.writeFull("/deny: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/desktop")) {
+            try self.output.writeFull("/desktop: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/docs")) {
+            try self.output.writeFull("/docs: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/env")) {
+            try self.output.writeFull("Usage: /env list|get <key>|set <key> <value>");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/fast")) {
+            try self.output.writeFull("/fast: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/feedback")) {
+            try self.output.writeFull("/feedback: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/focus")) {
+            try self.output.writeFull("/focus: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/hooks")) {
+            try self.output.writeFull("/hooks: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/hover")) {
+            try self.output.writeFull("/hover: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/ide")) {
+            try self.output.writeFull("/ide: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/insights")) {
+            try self.output.writeFull("/insights: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/keybindings")) {
+            try self.output.writeFull("/keybindings: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/language")) {
+            try self.output.writeFull("/language: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/listen")) {
+            try self.output.writeFull("/listen: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/macro")) {
+            try self.output.writeFull("/macro: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/map")) {
+            try self.output.writeFull("/map: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/metrics")) {
+            try self.output.writeFull("/metrics: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/migrate")) {
+            try self.output.writeFull("/migrate: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/multi")) {
+            try self.output.writeFull("/multi: multi mode (not yet implemented)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/notifications")) {
+            try self.output.writeFull("/notifications: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/perf")) {
+            try self.output.writeFull("/perf: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/pin")) {
+            try self.output.writeFull("/pin: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/privacy-settings")) {
+            try self.output.writeFull("/privacy-settings: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/project")) {
+            try self.output.writeFull("/project: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/reasoning")) {
+            try self.output.writeFull("/reasoning: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/release-notes")) {
+            try self.output.writeFull("/release-notes: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/rewind")) {
+            try self.output.writeFull("/rewind: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/screenshot")) {
+            try self.output.writeFull("/screenshot: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/security-review")) {
+            try self.output.writeFull("/security-review: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/speak")) {
+            try self.output.writeFull("/speak: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/stats")) {
+            try self.output.writeFull("Stats: no additional metrics available yet.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/stickers")) {
+            try self.output.writeFull("/stickers: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/subagent")) {
+            try self.output.writeFull("/subagent: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/system-prompt")) {
+            try self.output.writeFull("/system-prompt: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/tag")) {
+            try self.output.writeFull("/tag: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/tasks")) {
+            try self.output.writeFull("Tasks: no task queue configured.");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/team")) {
+            try self.output.writeFull("/team: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/telemetry")) {
+            try self.output.writeFull("/telemetry: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/teleport")) {
+            try self.output.writeFull("/teleport: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/templates")) {
+            try self.output.writeFull("/templates: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/terminal-setup")) {
+            try self.output.writeFull("/terminal-setup: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/thinkback")) {
+            try self.output.writeFull("/thinkback: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/tool-details")) {
+            try self.output.writeFull("/tool-details: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/ultraplan")) {
+            try self.output.writeFull("/ultraplan: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/unfocus")) {
+            try self.output.writeFull("/unfocus: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/unpin")) {
+            try self.output.writeFull("/unpin: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/upgrade")) {
+            try self.output.writeFull("/upgrade: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/voice")) {
+            try self.output.writeFull("/voice: not yet implemented");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/web")) {
+            try self.output.writeFull("/web: web mode (not yet implemented)");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/workspace")) {
+            try self.output.writeFull("/workspace: not yet implemented");
             try self.output.flush();
         } else {
             try self.output.print("Unknown: {s}\n", .{command}); try self.output.flush();
