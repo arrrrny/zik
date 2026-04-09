@@ -96,17 +96,17 @@ pub const REPL = struct {
             try self.output.flush(); try self.ctx.addAssistantMessage("(json)"); return;
         }
         if (self.provider.getActiveProvider()) |p| {
-            switch (p) { .anthropic => try self.callApiAnthropic(mj), .openai, .xai => try self.callApiOpenAI(mj), }
+            switch (p) { .zik => try self.callApiAnthropic(mj), .openai, .xai => try self.callApiOpenAI(mj), }
         }
         try self.output.finish();
     }
     fn callApiAnthropic(self: *Self, mj: []const u8) !void {
-        const ak = EnvReader.getAnthropicApiKey() orelse { try self.output.writeFull("Error: no API key"); try self.ctx.addAssistantMessage("(no key)"); return; };
-        const bu = EnvReader.getAnthropicBaseUrl();
+        const ak = EnvReader.getApiKey() orelse { try self.output.writeFull("Error: no API key"); try self.ctx.addAssistantMessage("(no key)"); return; };
+        const bu = EnvReader.getApiBaseUrl();
         const body = try std.fmt.allocPrint(self.allocator, "{{\"model\":\"{s}\",\"max_tokens\":4096,\"stream\":true,\"messages\":{s}}}", .{ self.model, mj }); defer self.allocator.free(body);
         const url = try std.fmt.allocPrint(self.allocator, "{s}/v1/messages", .{bu}); defer self.allocator.free(url);
         const ah = try std.fmt.allocPrint(self.allocator, "Authorization: Bearer {s}", .{ak}); defer self.allocator.free(ah);
-        try self.streamCurl(&.{ "-s", "-N", "--max-time", "120", "-H", "Content-Type: application/json", "-H", ah, "-H", "anthropic-version: 2023-06-01", "-d", body, url });
+        try self.streamCurl(&.{ "-s", "-N", "--max-time", "120", "-H", "Content-Type: application/json", "-H", ah, "-H", "x-api-key: {s}", "-d", body, url });
     }
     fn callApiOpenAI(self: *Self, mj: []const u8) !void {
         const ak = EnvReader.getOpenaiApiKey() orelse EnvReader.getXaiApiKey() orelse { try self.output.writeFull("Error: no API key"); try self.ctx.addAssistantMessage("(no key)"); return; };
@@ -185,7 +185,7 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/config")) {
             try self.output.print("Model: {s} Provider: {s} Output: {s} Workspace: {s} Base URL: {s}\n", .{
                 self.model, self.provider.providerName() orelse "none", if (self.output_format == .text) "text" else "json",
-                self.workspace_root, EnvReader.getAnthropicBaseUrl() });
+                self.workspace_root, EnvReader.getApiBaseUrl() });
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/export")) {
             try self.saveSession();
@@ -213,13 +213,13 @@ pub const REPL = struct {
             // Check API key
             const provider = EnvReader.detectProvider();
             if (provider) |p| {
-                const pname = switch (p) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+                const pname = switch (p) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
                 try self.output.print("API Key: {s} OK\n", .{pname});
             } else try self.output.writeFull("API Key: MISSING - set ANTHROPIC_API_KEY or OPENAI_API_KEY");
             // Check model
             try self.output.print("Model: {s}\n", .{self.model});
             // Check base URL
-            try self.output.print("Base URL: {s}\n", .{EnvReader.getAnthropicBaseUrl()});
+            try self.output.print("Base URL: {s}\n", .{EnvReader.getApiBaseUrl()});
             // Check workspace
             const stat = std.fs.cwd().stat() catch null;
             if (stat) |_| try self.output.print("Workspace: {s} OK\n", .{self.workspace_root})
@@ -984,12 +984,12 @@ pub const REPL = struct {
         // Check API connectivity
         const provider = EnvReader.detectProvider();
         if (provider) |p| {
-            const pname = switch (p) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            const pname = switch (p) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
             try self.output.print("API: {s} OK\n", .{pname});
         } else try self.output.writeFull("API: MISSING");
 
         try self.output.print("Model: {s}\n", .{self.model});
-        try self.output.print("Base URL: {s}\n", .{EnvReader.getAnthropicBaseUrl()});
+        try self.output.print("Base URL: {s}\n", .{EnvReader.getApiBaseUrl()});
         try self.output.print("Workspace: {s}\n", .{self.workspace_root});
 
         // Check if workspace has common files
@@ -1260,7 +1260,7 @@ pub const REPL = struct {
         try self.output.writeFull("=== Available Providers ===");
         const p = EnvReader.detectProvider();
         if (p) |prov| {
-            const name = switch (prov) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            const name = switch (prov) { .zik => "Zik (API proxy)", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
             try self.output.print("Active: {s}\n", .{name});
         } else try self.output.writeFull("Active: none (no API key set)");
         try self.output.writeFull("Supported: Anthropic, OpenAI-compatible, xAI");
@@ -1396,8 +1396,8 @@ pub const REPL = struct {
         const result_file = try std.fmt.allocPrint(self.allocator, ".claw/sessions/{s}.result", .{id_str});
         defer self.allocator.free(result_file);
         std.fs.cwd().makePath(".claw/sessions") catch {};
-        const api_key = EnvReader.getAnthropicApiKey() orelse "";
-        const base_url = EnvReader.getAnthropicBaseUrl();
+        const api_key = EnvReader.getApiKey() orelse "";
+        const base_url = EnvReader.getApiBaseUrl();
         const model = self.model;
         const script = try std.fmt.allocPrint(self.allocator,
             "curl -s -H 'Content-Type: application/json' -H 'anthropic-version: 2023-06-01' -H 'x-api-key: {s}' -d '{{\"model\":\"{s}\",\"max_tokens\":1024,\"stream\":false,\"system\":\"You are a sub-agent running in background. Answer concisely.\",\"messages\":[{{\"role\":\"user\",\"content\":\"{s}\"}}]}}' '{s}/v1/messages' 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print('\\\\n'.join([c['text'] for c in d.get('content',[{{}}]) if 'text' in c]))\" > {s} 2>/dev/null; echo 'DONE' >> {s}",

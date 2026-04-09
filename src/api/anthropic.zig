@@ -13,8 +13,8 @@ pub const AnthropicClient = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, http_client: *HttpClient) !Self {
-        const api_key = EnvReader.getAnthropicApiKey() orelse return error.AuthFailed;
-        const base_url = EnvReader.getAnthropicBaseUrl();
+        const api_key = EnvReader.getApiKey() orelse return error.AuthFailed;
+        const base_url = EnvReader.getApiBaseUrl();
 
         return .{
             .allocator = allocator,

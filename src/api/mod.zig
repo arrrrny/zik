@@ -9,14 +9,14 @@ const types = @import("../types/mod.zig");
 pub const ProviderRouter = struct {
     allocator: std.mem.Allocator,
     http_client: HttpClient,
-    anthropic: ?AnthropicClient = null,
+    zik: ?AnthropicClient = null,
     openai: ?OpenAIClient = null,
     active_provider: ?ProviderType = null,
     current_model: []const u8,
 
     const Self = @This();
 
-    pub const ProviderType = enum { anthropic, openai, xai };
+    pub const ProviderType = enum { zik, openai, xai };
 
     pub fn init(allocator: std.mem.Allocator, model: ?[]const u8) !Self {
         const http_client = HttpClient.init(allocator);
@@ -33,9 +33,9 @@ pub const ProviderRouter = struct {
 
         if (provider) |p| {
             switch (p) {
-                .anthropic => {
-                    self.anthropic = try AnthropicClient.init(allocator, &self.http_client);
-                    self.active_provider = .anthropic;
+                .zik => {
+                    self.zik = try AnthropicClient.init(allocator, &self.http_client);
+                    self.active_provider = .zik;
                 },
                 .openai => {
                     self.openai = try OpenAIClient.init(allocator, &self.http_client, .openai);
@@ -78,7 +78,7 @@ pub const ProviderRouter = struct {
     /// Get a user-friendly provider name.
     pub fn providerName(self: *const Self) ?[]const u8 {
         return switch (self.active_provider orelse return null) {
-            .anthropic => "Anthropic",
+            .zik => "Anthropic",
             .openai => "OpenAI-compatible",
             .xai => "xAI/Grok",
         };

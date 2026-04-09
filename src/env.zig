@@ -1,9 +1,10 @@
 const std = @import("std");
 
 /// Provider type for env detection
-pub const Provider = enum { anthropic, openai, xai };
+pub const Provider = enum { zik, openai, xai };
 
 /// Environment variable reader for API credentials and configuration.
+/// All variables use the ZIK_ prefix to avoid conflicts with other tools.
 pub const EnvReader = struct {
     /// Get the value of an environment variable, or null if not set.
     pub fn getEnv(key: []const u8) ?[]const u8 {
@@ -11,10 +12,13 @@ pub const EnvReader = struct {
     }
 
     /// Detect which provider is configured based on environment variables.
+    /// Checks ZIK_API_KEY first, then falls back to other providers.
     pub fn detectProvider() ?Provider {
-        // Check in order: Anthropic → OpenAI → xAI
-        if (getEnv("ANTHROPIC_API_KEY") != null or getEnv("ANTHROPIC_AUTH_TOKEN") != null)
-            return .anthropic;
+        if (getEnv("ZIK_API_KEY") != null or getEnv("ZIK_AUTH_TOKEN") != null)
+            return .zik;
+        // Legacy fallback: also check ANTHROPIC_* for backwards compatibility
+        if (getEnv("ZIK_API_KEY") != null or getEnv("ANTHROPIC_AUTH_TOKEN") != null)
+            return .zik;
         if (getEnv("OPENAI_API_KEY") != null)
             return .openai;
         if (getEnv("XAI_API_KEY") != null)
@@ -22,14 +26,19 @@ pub const EnvReader = struct {
         return null;
     }
 
-    /// Get the Anthropic API key, or null if not set.
-    pub fn getAnthropicApiKey() ?[]const u8 {
-        return getEnv("ANTHROPIC_API_KEY") orelse getEnv("ANTHROPIC_AUTH_TOKEN");
+    /// Get the API key. Checks ZIK_ first, then ANTHROPIC_ for backwards compat.
+    pub fn getApiKey() ?[]const u8 {
+        return getEnv("ZIK_API_KEY") orelse
+            getEnv("ZIK_AUTH_TOKEN") orelse
+            getEnv("ANTHROPIC_API_KEY") orelse
+            getEnv("ANTHROPIC_AUTH_TOKEN");
     }
 
-    /// Get the Anthropic base URL, defaulting to the official API.
-    pub fn getAnthropicBaseUrl() []const u8 {
-        return getEnv("ANTHROPIC_BASE_URL") orelse "https://api.anthropic.com";
+    /// Get the API base URL. Checks ZIK_ first, then ANTHROPIC_ for backwards compat.
+    pub fn getApiBaseUrl() []const u8 {
+        return getEnv("ZIK_BASE_URL") orelse
+            getEnv("ANTHROPIC_BASE_URL") orelse
+            "http://127.0.0.1:8317";
     }
 
     /// Get the OpenAI API key, or null if not set.
@@ -53,10 +62,10 @@ pub const EnvReader = struct {
     }
 
     /// Get the default model from env, or fallback to working free models.
+    /// Priority: ZIK_MODEL > ZIK_DEFAULT_MODEL > minimax-m2.5
     pub fn getDefaultModel() []const u8 {
         return getEnv("ZIK_MODEL") orelse
-            getEnv("ANTHROPIC_DEFAULT_SONNET_MODEL") orelse
-            getEnv("ANTHROPIC_DEFAULT_MODEL") orelse
+            getEnv("ZIK_DEFAULT_MODEL") orelse
             "minimax-m2.5";
     }
 
@@ -69,11 +78,13 @@ pub const EnvReader = struct {
     pub fn getNoProxy() ?[]const u8 {
         return getEnv("NO_PROXY");
     }
+
+    // Legacy aliases for backwards compatibility
+    pub const getAnthropicApiKey = getApiKey;
+    pub const getAnthropicBaseUrl = getApiBaseUrl;
 };
 
 test "EnvReader: detectProvider with no env vars" {
-    // In test environment, env vars may or may not be set.
-    // Just verify the function doesn't crash.
     _ = EnvReader.detectProvider();
 }
 
@@ -83,7 +94,7 @@ test "EnvReader: getEnv returns null for unknown key" {
 
 test "EnvReader: default URLs" {
     try std.testing.expectEqualStrings(
-        "https://api.anthropic.com",
-        EnvReader.getAnthropicBaseUrl(),
+        "http://127.0.0.1:8317",
+        EnvReader.getApiBaseUrl(),
     );
 }

@@ -19,11 +19,11 @@ pub const ProviderConfig = struct {
     /// Built-in provider configurations
     pub fn anthropicDefault() ProviderConfig {
         return .{
-            .name = .anthropic,
-            .base_url = "https://api.anthropic.com",
+            .name = .zik,
+            .base_url = "https://api.zik.com",
             .auth_method = .api_key,
             .api_key_env = "ANTHROPIC_API_KEY",
-            .protocol = .anthropic_messages,
+            .protocol = .zik_messages,
         };
     }
 
@@ -51,8 +51,8 @@ pub const ProviderConfig = struct {
 const std = @import("std");
 
 test "Provider defaults" {
-    const anthropic = ProviderConfig.anthropicDefault();
-    try std.testing.expectEqual(Provider.anthropic, anthropic.name);
+    const anthropic = ProviderConfig.zikDefault();
+    try std.testing.expectEqual(Provider.zik, anthropic.name);
     try std.testing.expectEqualStrings("ANTHROPIC_API_KEY", anthropic.api_key_env);
 
     const openai = ProviderConfig.openaiDefault();

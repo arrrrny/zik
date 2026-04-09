@@ -39,7 +39,7 @@ pub const ModelRegistry = struct {
         models[0] = .{
             .id = "claude-opus-4-6",
             .aliases = &.{ "opus" },
-            .provider = .anthropic,
+            .provider = .zik,
             .max_output_tokens = 32_000,
             .context_window = 200_000,
             .pricing_per_1m_input = 15_00, // $15.00
@@ -48,7 +48,7 @@ pub const ModelRegistry = struct {
         models[1] = .{
             .id = "claude-sonnet-4-6",
             .aliases = &.{ "sonnet" },
-            .provider = .anthropic,
+            .provider = .zik,
             .max_output_tokens = 64_000,
             .context_window = 200_000,
             .pricing_per_1m_input = 3_00, // $3.00
@@ -57,7 +57,7 @@ pub const ModelRegistry = struct {
         models[2] = .{
             .id = "claude-haiku-4-5-20251213",
             .aliases = &.{ "haiku" },
-            .provider = .anthropic,
+            .provider = .zik,
             .max_output_tokens = 64_000,
             .context_window = 200_000,
             .pricing_per_1m_input = 1_00, // $1.00
@@ -95,7 +95,7 @@ test "ModelRegistry resolve by alias" {
     const registry = try ModelRegistry.builtIn(allocator);
     const model = registry.resolve("sonnet").?;
     try std.testing.expectEqualStrings("claude-sonnet-4-6", model.id);
-    try std.testing.expectEqual(Model.Provider.anthropic, model.provider);
+    try std.testing.expectEqual(Model.Provider.zik, model.provider);
 }
 
 test "ModelRegistry resolve by ID" {

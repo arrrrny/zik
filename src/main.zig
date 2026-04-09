@@ -31,7 +31,7 @@ pub fn main() !void {
                 std.debug.print(
                     \\Error: No API key found.
                     \\Set one of:
-                    \\  ANTHROPIC_API_KEY
+                    \\  ZIK_API_KEY
                     \\  OPENAI_API_KEY (+ OPENAI_BASE_URL)
                     \\  XAI_API_KEY
                     \\
@@ -59,7 +59,7 @@ fn runPrompt(allocator: std.mem.Allocator, text: []const u8, parsed: CliArgs) !v
     if (EnvReader.detectProvider() == null) {
         std.debug.print(
             \\Error: No API key found.
-            \\Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY
+            \\Set one of: ZIK_API_KEY, ZIK_BASE_URL
             \\
         , .{});
         std.posix.exit(2);
@@ -108,7 +108,7 @@ fn printHelp() void {
         \\  danger-full-access All operations allowed
         \\
         \\Environment Variables:
-        \\  ANTHROPIC_API_KEY     Anthropic API key
+        \\  ZIK_API_KEY     Anthropic API key
         \\  OPENAI_API_KEY        OpenAI-compatible API key
         \\  OPENAI_BASE_URL       OpenAI-compatible endpoint
         \\  XAI_API_KEY           xAI/Grok API key
