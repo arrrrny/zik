@@ -131,7 +131,7 @@ const ALL_CMDS: []const CmdInfo = &.{
     .{ .cmd = "/speak", .desc = "Not yet implemented" },
     .{ .cmd = "/stats", .desc = "Not yet implemented" },
     .{ .cmd = "/stickers", .desc = "Not yet implemented" },
-    .{ .cmd = "/subagent", .desc = "Not yet implemented" },
+    .{ .cmd = "/subagent", .desc = "Spawn background sub-agent" },
     .{ .cmd = "/system-prompt", .desc = "Not yet implemented" },
     .{ .cmd = "/tag", .desc = "Not yet implemented" },
     .{ .cmd = "/tasks", .desc = "Not yet implemented" },

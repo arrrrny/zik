@@ -450,6 +450,22 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/image")) {
             try self.output.writeFull("Usage: /image <path> — analyze an image file");
             try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/subagent ")) {
+            const rest = command["/subagent ".len..];
+            if (std.mem.eql(u8, rest, "list")) {
+                try self.handleAgentList();
+            } else if (std.mem.startsWith(u8, rest, "cancel ")) {
+                try self.handleAgentCancel(rest["cancel ".len..]);
+            } else if (std.mem.startsWith(u8, rest, "result ")) {
+                try self.handleAgentResult(rest["result ".len..]);
+            } else {
+                try self.handleSubAgent(rest);
+            }
+        } else if (std.mem.eql(u8, command, "/subagent")) {
+            try self.output.writeFull("Usage: /subagent <prompt> — spawn background sub-agent to run task");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/agents")) {
+            try self.handleAgentList();
         } else if (std.mem.startsWith(u8, command, "/agent ")) {
             const rest = command["/agent ".len..];
             if (std.mem.eql(u8, rest, "list")) {
@@ -474,8 +490,7 @@ pub const REPL = struct {
             try self.output.writeFull("/advisor: not yet implemented");
             try self.output.flush();
         } else if (std.mem.eql(u8, command, "/agents")) {
-            try self.output.writeFull("/agents: not yet implemented");
-            try self.output.flush();
+            try self.handleAgentList();            try self.output.flush();
         } else if (std.mem.eql(u8, command, "/alias")) {
             try self.output.writeFull("/alias: not yet implemented");
             try self.output.flush();
@@ -1360,6 +1375,91 @@ pub const REPL = struct {
             }
         }
         try self.output.writeFull("=== End Agents ===");
+        try self.output.flush();
+    }
+
+    fn handleSubAgent(self: *Self, prompt: []const u8) !void {
+        if (self.agent_count >= MAX_AGENTS) {
+            try self.output.print("Max sub-agents reached ({d}). Use /subagent cancel <id> to stop one.\n", .{MAX_AGENTS});
+            try self.output.flush();
+            return;
+        }
+        const idx = self.agent_count;
+        self.agent_count += 1;
+        const id_str = try std.fmt.allocPrint(self.allocator, "agent-{d}", .{idx + 1});
+        defer self.allocator.free(id_str);
+        @memcpy(self.agents[idx].id[0..id_str.len], id_str);
+        self.agents[idx].id[id_str.len] = 0;
+        self.agents[idx].status = "running";
+        self.agents[idx].result = "";
+        self.agents[idx].prompt = prompt;
+        const result_file = try std.fmt.allocPrint(self.allocator, ".claw/sessions/{s}.result", .{id_str});
+        defer self.allocator.free(result_file);
+        std.fs.cwd().makePath(".claw/sessions") catch {};
+        const api_key = EnvReader.getAnthropicApiKey() orelse "";
+        const base_url = EnvReader.getAnthropicBaseUrl();
+        const model = self.model;
+        const script = try std.fmt.allocPrint(self.allocator,
+            "curl -s -H 'Content-Type: application/json' -H 'anthropic-version: 2023-06-01' -H 'x-api-key: {s}' -d '{{\"model\":\"{s}\",\"max_tokens\":1024,\"stream\":false,\"system\":\"You are a sub-agent running in background. Answer concisely.\",\"messages\":[{{\"role\":\"user\",\"content\":\"{s}\"}}]}}' '{s}/v1/messages' 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print('\\\\n'.join([c['text'] for c in d.get('content',[{{}}]) if 'text' in c]))\" > {s} 2>/dev/null; echo 'DONE' >> {s}",
+            .{ api_key, model, prompt, base_url, result_file, result_file });
+        defer self.allocator.free(script);
+        var shell_args: [3][]const u8 = .{ "sh", "-c", script };
+        var child = std.process.Child.init(&shell_args, self.allocator);
+        _ = child.spawn() catch {
+            self.agents[idx].status = "failed";
+            try self.output.print("Agent {s}: spawn failed\n", .{id_str});
+            try self.output.flush();
+            return;
+        };
+        try self.output.print("Sub-agent {s} spawned (background)\n", .{id_str});
+        try self.output.print("Task: {s}\n", .{prompt});
+        try self.output.writeFull("Use /subagent list to check status, /subagent result <id> to get results");
+        try self.output.flush();
+    }
+    fn handleAgentCancel(self: *Self, arg: []const u8) !void {
+        var i: usize = 0;
+        var found = false;
+        while (i < self.agent_count) : (i += 1) {
+            const id_len = std.mem.indexOfScalar(u8, &self.agents[i].id, 0) orelse self.agents[i].id.len;
+            if (std.mem.eql(u8, self.agents[i].id[0..id_len], arg)) {
+                self.agents[i].status = "cancelled";
+                try self.output.print("Agent {s} cancelled\n", .{arg});
+                found = true;
+                break;
+            }
+        }
+        if (!found) try self.output.print("Agent not found: {s}\n", .{arg});
+        try self.output.flush();
+    }
+    fn handleAgentResult(self: *Self, arg: []const u8) !void {
+        var i: usize = 0;
+        var found = false;
+        while (i < self.agent_count) : (i += 1) {
+            const id_len = std.mem.indexOfScalar(u8, &self.agents[i].id, 0) orelse self.agents[i].id.len;
+            if (std.mem.eql(u8, self.agents[i].id[0..id_len], arg)) {
+                const result_file = try std.fmt.allocPrint(self.allocator, ".claw/sessions/{s}.result", .{arg});
+                defer self.allocator.free(result_file);
+                const content = std.fs.cwd().readFileAlloc(self.allocator, result_file, 65536) catch {
+                    if (std.mem.eql(u8, self.agents[i].status, "running")) {
+                        try self.output.print("Agent {s}: still running...\n", .{arg});
+                    } else {
+                        try self.output.print("Agent {s}: no result available\n", .{arg});
+                    }
+                    try self.output.flush();
+                    found = true;
+                    break;
+                };
+                defer self.allocator.free(content);
+                self.agents[i].status = "completed";
+                self.agents[i].result = content;
+                try self.output.print("=== Agent {s} Result ===\n", .{arg});
+                try self.output.writeFull(content);
+                try self.output.writeFull("=== End Result ===");
+                found = true;
+                break;
+            }
+        }
+        if (!found) try self.output.print("Agent not found: {s}\n", .{arg});
         try self.output.flush();
     }
 };
