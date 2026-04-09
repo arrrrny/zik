@@ -39,7 +39,7 @@ pub fn main() !void {
                 std.posix.exit(2);
             }
 
-            var repl = try REPL.init(allocator, parsed.model, null, parsed.resume_session);
+            var repl = try REPL.init(allocator, EnvReader.resolveModelAlias(parsed.model orelse EnvReader.getDefaultModel()), null, parsed.resume_session);
             defer repl.deinit();
 
             if (parsed.output_format == .json) {
@@ -65,7 +65,7 @@ fn runPrompt(allocator: std.mem.Allocator, text: []const u8, parsed: CliArgs) !v
         std.posix.exit(2);
     }
 
-    var repl = try REPL.init(allocator, parsed.model, null, parsed.resume_session);
+    var repl = try REPL.init(allocator, EnvReader.resolveModelAlias(parsed.model orelse EnvReader.getDefaultModel()), null, parsed.resume_session);
     defer repl.deinit();
 
     if (parsed.output_format == .json) {

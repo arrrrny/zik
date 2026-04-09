@@ -69,6 +69,26 @@ pub const EnvReader = struct {
             "minimax-m2.5";
     }
 
+    /// Resolve zik-tier aliases to actual model names.
+    /// Users can override these via env vars:
+    ///   ZIK_OPUS=claude-opus-4-6
+    ///   ZIK_SONNET=claude-sonnet-4-6
+    ///   ZIK_HAIKU=claude-haiku-4-5-20251213
+    /// Falls back to sensible defaults if not set.
+    pub fn resolveModelAlias(query: []const u8) []const u8 {
+        if (std.mem.eql(u8, query, "zik-opus") or std.mem.eql(u8, query, "opus")) {
+            return getEnv("ZIK_OPUS") orelse "claude-opus-4-6";
+        }
+        if (std.mem.eql(u8, query, "zik-sonnet") or std.mem.eql(u8, query, "sonnet")) {
+            return getEnv("ZIK_SONNET") orelse "claude-sonnet-4-6";
+        }
+        if (std.mem.eql(u8, query, "zik-haiku") or std.mem.eql(u8, query, "haiku")) {
+            return getEnv("ZIK_HAIKU") orelse "claude-haiku-4-5-20251213";
+        }
+        // Not a zik alias — return as-is
+        return query;
+    }
+
     /// Get the HTTP proxy URL, or null if not set.
     pub fn getHttpProxy() ?[]const u8 {
         return getEnv("HTTPS_PROXY") orelse getEnv("http_proxy") orelse getEnv("HTTP_PROXY");

@@ -176,7 +176,7 @@ pub const REPL = struct {
         } else if (std.mem.eql(u8, command, "/model")) {
             try self.output.print("Model: {s}\n", .{self.model}); try self.output.flush();
         } else if (std.mem.startsWith(u8, command, "/model ")) {
-            self.model = command["/model ".len..]; self.provider.setModel(self.model);
+            self.model = EnvReader.resolveModelAlias(command["/model ".len..]); self.provider.setModel(self.model);
             try self.output.print("Model: {s}\n", .{self.model}); try self.output.flush();
         } else if (std.mem.eql(u8, command, "/cost")) {
             const u = self.ctx.getTokenUsage();
