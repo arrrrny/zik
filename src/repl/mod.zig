@@ -163,7 +163,7 @@ pub const REPL = struct {
     }
     fn handleCommand(self: *Self, command: []const u8) !void {
         if (std.mem.eql(u8, command, "/help")) {
-            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent /pr /issue /branch /share /copy /paste /image");
+            try self.output.writeFull("Commands: /help /status /exit /clear /model /cost /config /export /compact /history /doctor /session /permissions /version /diff /resume /undo /run /test /build /stop /retry /search /files /explain /fix /format /lint /refactor /review /context /usage /tokens /plan /reset /git /commit /summary /mcp /plugin /skills /sandbox /output-style /max-tokens /temperature /effort /profile /diagnostics /log /init /theme /vim /parallel /cache /agent /pr /issue /branch /share /copy /paste /image /memory /budget /rate-limit /providers /rename /symbols /definition /references /blame /stash");
         } else if (std.mem.eql(u8, command, "/exit") or std.mem.eql(u8, command, "/quit")) {
             self.running = false;
         } else if (std.mem.eql(u8, command, "/clear")) {
@@ -404,6 +404,47 @@ pub const REPL = struct {
             try self.handleCopy(command["/copy ".len..]);
         } else if (std.mem.eql(u8, command, "/paste")) {
             try self.handlePaste();
+        } else if (std.mem.eql(u8, command, "/memory")) {
+            try self.handleMemory("list");
+        } else if (std.mem.startsWith(u8, command, "/memory ")) {
+            try self.handleMemory(command["/memory ".len..]);
+        } else if (std.mem.eql(u8, command, "/budget")) {
+            try self.handleBudget();
+        } else if (std.mem.startsWith(u8, command, "/budget ")) {
+            try self.handleBudgetSet(command["/budget ".len..]);
+        } else if (std.mem.eql(u8, command, "/rate-limit")) {
+            try self.handleRateLimit();
+        } else if (std.mem.eql(u8, command, "/providers")) {
+            try self.handleProviders();
+        } else if (std.mem.startsWith(u8, command, "/rename ")) {
+            try self.handleRename(command["/rename ".len..]);
+        } else if (std.mem.eql(u8, command, "/rename")) {
+            try self.output.writeFull("Usage: /rename <old> <new> — rename a file");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/symbols ")) {
+            try self.handleSymbols(command["/symbols ".len..]);
+        } else if (std.mem.eql(u8, command, "/symbols")) {
+            try self.output.writeFull("Usage: /symbols <name> — search for symbol definitions");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/definition ")) {
+            try self.handleDefinition(command["/definition ".len..]);
+        } else if (std.mem.eql(u8, command, "/definition")) {
+            try self.output.writeFull("Usage: /definition <symbol> — go to symbol definition");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/references ")) {
+            try self.handleReferences(command["/references ".len..]);
+        } else if (std.mem.eql(u8, command, "/references")) {
+            try self.output.writeFull("Usage: /references <symbol> — find symbol references");
+            try self.output.flush();
+        } else if (std.mem.startsWith(u8, command, "/blame ")) {
+            try self.handleBlame(command["/blame ".len..]);
+        } else if (std.mem.eql(u8, command, "/blame")) {
+            try self.output.writeFull("Usage: /blame <file> — show git blame");
+            try self.output.flush();
+        } else if (std.mem.eql(u8, command, "/stash")) {
+            try self.handleStash("list");
+        } else if (std.mem.startsWith(u8, command, "/stash ")) {
+            try self.handleStash(command["/stash ".len..]);
         } else if (std.mem.startsWith(u8, command, "/image ")) {
             try self.handleImage(command["/image ".len..]);
         } else if (std.mem.eql(u8, command, "/image")) {
@@ -946,6 +987,141 @@ pub const REPL = struct {
         };
         try self.output.print("Image: {s} ({} bytes)\n", .{ path, stat.size });
         try self.output.writeFull("To analyze this image, describe what you want to extract from it.");
+        try self.output.flush();
+    }
+
+    fn handleMemory(self: *Self, arg: []const u8) !void {
+        const mem_file = ".claw/memory.json";
+        if (std.mem.eql(u8, arg, "list")) {
+            const content = std.fs.cwd().readFileAlloc(self.allocator, mem_file, 65536) catch {
+                try self.output.writeFull("No memories stored. Use /memory add <fact> to save something.");
+                try self.output.flush();
+                return;
+            };
+            defer self.allocator.free(content);
+            try self.output.print("=== Saved Memories ===\n{s}\n=== End Memories ===\n", .{content});
+        } else if (std.mem.startsWith(u8, arg, "add ")) {
+            const fact = arg["add ".len..];
+            var f = std.fs.cwd().openFile(mem_file, .{ .mode = .read_write }) catch
+                std.fs.cwd().createFile(mem_file, .{ .truncate = false }) catch {
+                    try self.output.writeFull("Failed to create memory file.");
+                    try self.output.flush();
+                    return;
+                };
+            defer f.close();
+            const stat = try f.stat();
+            try f.seekTo(stat.size);
+            if (stat.size > 0) try f.writeAll("\n");
+            try f.writeAll(fact);
+            try self.output.print("Memory saved: {s}\n", .{fact});
+        } else if (std.mem.eql(u8, arg, "clear")) {
+            std.fs.cwd().deleteFile(mem_file) catch {};
+            try self.output.writeFull("All memories cleared.");
+        } else {
+            try self.output.writeFull("Usage: /memory list|add <fact>|clear");
+        }
+        try self.output.flush();
+    }
+
+    fn handleBudget(self: *Self) !void {
+        const u = self.ctx.getTokenUsage();
+        const budget: usize = 200000;
+        const pct = (@as(f64, @floatFromInt(u.total())) / @as(f64, @floatFromInt(budget))) * 100.0;
+        try self.output.print("=== Token Budget ===\nUsed: {} / {} ({d:.1}%)\nRemaining: {}\n=== End Budget ===\n", .{ u.total(), budget, pct, budget - u.total() });
+        try self.output.flush();
+    }
+    fn handleBudgetSet(self: *Self, arg: []const u8) !void {
+        _ = arg;
+        try self.output.writeFull("Budget is fixed at 200,000 tokens per session.");
+        try self.output.flush();
+    }
+
+    fn handleRateLimit(self: *Self) !void {
+        try self.output.writeFull("=== Rate Limit Status ===");
+        try self.output.writeFull("No rate limit tracking available (proxy handles rate limiting).");
+        try self.output.writeFull("=== End Rate Limit ===");
+        try self.output.flush();
+    }
+
+    fn handleProviders(self: *Self) !void {
+        try self.output.writeFull("=== Available Providers ===");
+        const p = EnvReader.detectProvider();
+        if (p) |prov| {
+            const name = switch (prov) { .anthropic => "Anthropic", .openai => "OpenAI-compatible", .xai => "xAI/Grok" };
+            try self.output.print("Active: {s}\n", .{name});
+        } else try self.output.writeFull("Active: none (no API key set)");
+        try self.output.writeFull("Supported: Anthropic, OpenAI-compatible, xAI");
+        try self.output.writeFull("=== End Providers ===");
+        try self.output.flush();
+    }
+
+    fn handleRename(self: *Self, arg: []const u8) !void {
+        const space = std.mem.indexOfScalar(u8, arg, ' ') orelse {
+            try self.output.writeFull("Usage: /rename <old_path> <new_path>");
+            try self.output.flush();
+            return;
+        };
+        const old = arg[0..space];
+        const new = arg[space + 1 ..];
+        std.fs.cwd().rename(old, new) catch |err| {
+            try self.output.print("Failed to rename: {}\n", .{err});
+            try self.output.flush();
+            return;
+        };
+        try self.output.print("Renamed: {s} → {s}\n", .{ old, new });
+        try self.output.flush();
+    }
+
+    fn handleSymbols(self: *Self, arg: []const u8) !void {
+        try self.output.print("Searching for symbol: {s}\n", .{arg});
+        try self.output.writeFull("Use grep_search or glob_search to find symbol definitions in code.");
+        try self.output.flush();
+    }
+
+    fn handleDefinition(self: *Self, arg: []const u8) !void {
+        try self.output.print("Finding definition of: {s}\n", .{arg});
+        try self.output.writeFull("Use grep_search to search for function/class definitions.");
+        try self.output.flush();
+    }
+
+    fn handleReferences(self: *Self, arg: []const u8) !void {
+        try self.output.print("Finding references to: {s}\n", .{arg});
+        var child = std.process.Child.init(&[_][]const u8{ "grep", "-rn", arg, "--include=*.zig", "--include=*.ts", "--include=*.js", "--include=*.py", "--include=*.rs", "." }, self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch {
+            try self.output.writeFull("grep not available.");
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        try self.output.flush();
+    }
+
+    fn handleBlame(self: *Self, arg: []const u8) !void {
+        var child = std.process.Child.init(&[_][]const u8{ "git", "blame", arg }, self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed or not a repo.");
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
+        try self.output.flush();
+    }
+
+    fn handleStash(self: *Self, arg: []const u8) !void {
+        const cmd = if (std.mem.eql(u8, arg, "list")) &[_][]const u8{ "git", "stash", "list" }
+            else if (std.mem.eql(u8, arg, "pop")) &[_][]const u8{ "git", "stash", "pop" }
+            else if (std.mem.eql(u8, arg, "apply")) &[_][]const u8{ "git", "stash", "apply" }
+            else &[_][]const u8{ "git", "stash", "push", "-m", arg };
+        var child = std.process.Child.init(cmd, self.allocator);
+        child.cwd = self.workspace_root;
+        const t = child.spawnAndWait() catch {
+            try self.output.writeFull("Git not installed or not a repo.");
+            try self.output.flush();
+            return;
+        };
+        if (t == .Exited) try self.output.print("\nExit code: {d}\n", .{t.Exited});
         try self.output.flush();
     }
 

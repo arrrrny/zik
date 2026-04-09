@@ -73,6 +73,16 @@ const ALL_CMDS: []const CmdInfo = &.{
     .{ .cmd = "/copy", .desc = "Copy text to clipboard" },
     .{ .cmd = "/paste", .desc = "Paste from clipboard" },
     .{ .cmd = "/image", .desc = "Analyze image file" },
+    .{ .cmd = "/memory", .desc = "Persistent cross-session memory" },
+    .{ .cmd = "/budget", .desc = "Token budget control" },
+    .{ .cmd = "/rate-limit", .desc = "Rate limit status" },
+    .{ .cmd = "/providers", .desc = "List available providers" },
+    .{ .cmd = "/rename", .desc = "Rename files" },
+    .{ .cmd = "/symbols", .desc = "Symbol search" },
+    .{ .cmd = "/definition", .desc = "Go to definition" },
+    .{ .cmd = "/references", .desc = "Find references" },
+    .{ .cmd = "/blame", .desc = "Git blame" },
+    .{ .cmd = "/stash", .desc = "Git stash management" },
 };
 
 pub const InputHandler = struct {
